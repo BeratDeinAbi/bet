@@ -1,0 +1,66 @@
+{
+  "football": {
+    "leagues": [
+      {"id": "BL1", "name": "Bundesliga", "country": "Germany", "api_code": "BL1"},
+      {"id": "BL2", "name": "2. Bundesliga", "country": "Germany", "api_code": "BL2"},
+      {"id": "BL3", "name": "3. Liga", "country": "Germany", "api_code": "BL3"},
+      {"id": "PL", "name": "Premier League", "country": "England", "api_code": "PL"},
+      {"id": "ELC", "name": "Championship", "country": "England", "api_code": "ELC"},
+      {"id": "SA", "name": "Serie A", "country": "Italy", "api_code": "SA"},
+      {"id": "FL1", "name": "Ligue 1", "country": "France", "api_code": "FL1"},
+      {"id": "SSL", "name": "Sueper Lig", "country": "Turkey", "api_code": "SSL"},
+      {"id": "DED", "name": "Eredivisie", "country": "Netherlands", "api_code": "DED"},
+      {"id": "PD", "name": "La Liga", "country": "Spain", "api_code": "PD"}
+    ],
+    "prediction_targets": [
+      "match_winner",
+      "total_goals",
+      "btts",
+      "first_half_goals"
+    ],
+    "models": [
+      "dixon_coles",
+      "poisson_regression",
+      "xgboost_classifier",
+      "elo_rating",
+      "random_forest"
+    ]
+  },
+  "tennis": {
+    "categories": [
+      {"id": "ATP", "name": "ATP Tour", "surface_types": ["hard", "clay", "grass", "indoor"]},
+      {"id": "RG", "name": "Roland Garros", "city": "Paris", "surface": "clay", "type": "Grand Slam"},
+      {"id": "WIM", "name": "Wimbledon", "city": "London", "surface": "grass", "type": "Grand Slam"}
+    ],
+    "prediction_targets": [
+      "match_winner_probability",
+      "tiebreak_probability",
+      "set_score_closeness",
+      "favorite_confidence"
+    ],
+    "models": [
+      "elo_rating",
+      "surface_adjusted_win_prob",
+      "serve_return_model",
+      "bradley_terry"
+    ]
+  },
+  "nhl": {
+    "league": {
+      "id": "NHL",
+      "name": "National Hockey League",
+      "country": "North America"
+    },
+    "prediction_targets": [
+      "total_goals_regulation",
+      "home_team_goals",
+      "away_team_goals"
+    ],
+    "models": [
+      "poisson_goals_model",
+      "corsi_fenwick_analytics",
+      "power_play_efficiency",
+      "goals_per_60"
+    ]
+  }
+}
