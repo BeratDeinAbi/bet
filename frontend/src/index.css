@@ -1,0 +1,47 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-bg: #0f0f0f;
+    --color-surface: #131313;
+  }
+
+  body {
+    @apply bg-surface text-gray-100 font-sans;
+    background-color: #0f0f0f;
+  }
+
+  * {
+    @apply border-surface-border;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-surface-mid border border-surface-border rounded-xl;
+  }
+
+  .card {
+    @apply bg-surface-mid border border-surface-border rounded-xl p-4;
+  }
+
+  .badge-high {
+    @apply bg-accent-green/20 text-accent-green text-xs font-semibold px-2 py-0.5 rounded-full;
+  }
+
+  .badge-medium {
+    @apply bg-accent-amber/20 text-accent-amber text-xs font-semibold px-2 py-0.5 rounded-full;
+  }
+
+  .badge-low {
+    @apply bg-accent-red/20 text-accent-red text-xs font-semibold px-2 py-0.5 rounded-full;
+  }
+
+  .prob-bar-fill {
+    @apply h-1.5 rounded-full bg-accent-blue transition-all duration-500;
+  }
+}
