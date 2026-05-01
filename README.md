@@ -1,94 +1,132 @@
-# Sports Prediction Bot
+# Sports Prediction Dashboard
 
-> AI-powered prediction bot for **Football**, **Tennis** & **NHL** — built with Python, scikit-learn, XGBoost & Streamlit
+Lokale Web-App für Fußball- und NHL-Torprognosen. Täglich aktualisierte Vorhersagen mit Poisson-Modellen, Dixon-Coles-Korrektur und Elo-Rating-Ensemble.
 
----
+## Features
 
-## Projektstruktur
-
-```
-sports-prediction-bot/
-├── main.py                    # Streamlit Dashboard
-├── requirements.txt
-├── config/
-│   └── leagues.json           # Liga- & Turnierkonfiguration
-├── predictors/
-│   ├── football_predictor.py  # Fußball ML-Modell
-│   ├── tennis_predictor.py    # Tennis ML-Modell
-│   └── nhl_predictor.py       # NHL ML-Modell
-└── utils/
-    ├── data_fetcher.py        # API & Daten-Abruf
-    └── model_trainer.py       # Modell-Training & Evaluation
-```
-
----
-
-## Sportarten & Features
-
-### Fußball
-**Ligen:** Bundesliga, 2. Bundesliga, 3. Liga, Premier League, Championship, Serie A, Ligue 1, Süper Lig, Eredivisie, La Liga
-
-**Vorhersagen:**
-- Welche Mannschaft gewinnt (1X2 Klassifikation)
-- Erwartete Gesamttore (Poisson-Regression)
-- Both Teams to Score (BTTS) — Ja/Nein
-- Erwartete Tore in der 1. Halbzeit
-
-**Algorithmen:** Poisson-Regression, XGBoost Classifier, Random Forest, Dixon-Coles Modell, ELO-Rating
-
-### Tennis
-**Kategorien:** ATP Tour, Roland Garros (Paris), Wimbledon (London)
-
-**Vorhersagen:**
-- Klarer Favorit oder offenes Match (Wahrscheinlichkeit)
-- Tiebreak-Wahrscheinlichkeit pro Satz
-- Satz-Verlauf (knapp / einseitig)
-
-**Algorithmen:** Elo-basiertes Matchmodell, Serve/Return Stats, Surface-Adjusted Win Probability
-
-### NHL (Eishockey)
-**Liga:** NHL
-
-**Vorhersagen:**
-- Erwartete Tore in der regulären Spielzeit (gesamt)
-- Erwartete Tore pro Team (individuell)
-
-**Algorithmen:** Poisson-Modell (Goals/60), Corsi/Fenwick Analytics, Power-Play Efficiency
-
----
-
-## Installation
-
-```bash
-git clone https://github.com/BeratDeinAbi/sports-prediction-bot.git
-cd sports-prediction-bot
-pip install -r requirements.txt
-streamlit run main.py
-```
-
----
-
-## Datenquellen
-
-- [football-data.org](https://www.football-data.org/) — kostenlose Football API
-- [api-tennis.com](https://api-tennis.com/) — Tennis Statistiken
-- [NHL Stats API](https://statsapi.web.nhl.com/) — offizielle NHL API (kostenlos)
-- [sportsipy](https://github.com/roclark/sportsipy) — Python Sports Reference Wrapper
-
----
+- **Heutige Spiele**: Bundesliga, Premier League, La Liga, Süper Lig, NHL
+- **Torprognosen**: Gesamt, 1. HZ / 2. HZ (Fußball), Periode 1–3 (NHL)
+- **Over/Under**: Wahrscheinlichkeiten für alle gängigen Linien
+- **Top 3 Picks**: Täglich die 3 besten Torprognosen mit Ranking-Score
+- **Confidence Score**: Modellkonfidenz + Stabilitätsmetrik
+- **Backtesting**: MAE, RMSE, Brier Score pro Liga und Markt
+- **Mock-Fallback**: Läuft vollständig ohne API-Keys
 
 ## Tech Stack
 
-| Tool | Zweck |
-|---|---|
-| Python 3.11 | Hauptsprache |
-| scikit-learn | ML Modelle |
-| XGBoost | Gradient Boosting |
-| pandas / numpy | Datenverarbeitung |
-| Streamlit | Dashboard UI |
-| requests | API Calls |
-| scipy | Poisson Statistik |
+| Layer | Technologie |
+|-------|-------------|
+| Frontend | React 18 + TypeScript + Vite + Tailwind |
+| Backend | FastAPI + SQLAlchemy |
+| DB | SQLite |
+| ML | Python: Scipy, NumPy, Scikit-learn |
+| ML-Modelle | Poisson MLE, Dixon-Coles, Elo, Ensemble |
 
----
+## Schnellstart
 
-*Made with Python — Data Science Projekt*
+### 1. Setup
+
+```bash
+cp .env.example .env
+# Optional: API Keys in .env eintragen
+
+# Backend
+cd backend
+pip install -r requirements.txt
+cd ..
+
+# Frontend
+cd frontend
+npm install
+cd ..
+```
+
+### 2. Backend starten
+
+```bash
+cd backend
+uvicorn main:app --reload --port 8000
+```
+
+API: http://localhost:8000 | Swagger: http://localhost:8000/docs
+
+### 3. Frontend starten
+
+```bash
+cd frontend
+npm run dev
+```
+
+Dashboard: http://localhost:5173
+
+### 4. Demo-Daten laden
+
+Im Browser auf **"Demo-Daten laden"** klicken oder:
+
+```bash
+python scripts/seed.py
+```
+
+Lädt: historische Mock-Daten → trainiert Modelle → generiert heutige Prognosen.
+
+## API-Keys eintragen (.env)
+
+```env
+FOOTBALL_DATA_API_KEY=your_key   # football-data.org (BL1, PL, PD)
+SUPERLIG_API_KEY=your_key        # eigener Süper Lig Provider
+SUPERLIG_API_URL=https://...
+ODDS_API_KEY=your_key            # the-odds-api.com (optional)
+```
+
+## Struktur
+
+```
+backend/app/
+  api/endpoints/    REST Endpoints
+  core/config.py   Settings (.env)
+  db/              SQLAlchemy + SQLite
+  providers/       Provider Abstraktion + Adapter
+  schemas/         Pydantic
+  services/        Business Logic
+
+frontend/src/
+  api/client.ts    API Client
+  components/      MatchCard, Top3Modal, ...
+  pages/           Dashboard, Detail, Backtests
+
+ml/
+  models/          FootballEnsemble, NHLEnsemble
+  training/        Trainings-Pipeline
+  backtesting/     Walk-forward Validierung
+
+data/mock/         JSON Mock-Daten
+data/models/       Gespeicherte Modelle (.pkl)
+scripts/           Setup + Seed
+```
+
+## Wichtige Endpoints
+
+| Endpoint | Beschreibung |
+|----------|--------------|
+| GET /health | Status |
+| GET /matches/today | Heutige Spiele |
+| GET /predictions/today | Alle Prognosen |
+| GET /predictions/top3 | Top 3 Picks |
+| POST /admin/seed | Demo-Daten + Training |
+| GET /backtests/summary | Backtest-Ergebnisse |
+
+## ML-Modelle
+
+**Fußball**: Poisson MLE + Dixon-Coles (ρ=-0.13) + Elo Adjustment + HalfTime-Modell
+
+**NHL**: Poisson MLE + Elo + Period-Ratios (P1/P2/P3)
+
+**Ensemble**: Gewichtete Kombination mit walk-forward Backtesting
+
+## Nächste Schritte (v2)
+
+- XGBoost als dritte Ensemble-Stufe
+- Live-Score Integration
+- Odds API Vollintegration (Edge-Berechnung)
+- Mehr Ligen: Serie A, Champions League
+- Rolling Form-Features (letzte 5 Spiele)

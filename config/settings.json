@@ -1,0 +1,50 @@
+{
+  "version": "1.0.0",
+  "active_competitions": {
+    "football": [
+      { "code": "BL1", "name": "Bundesliga",     "country": "Germany",  "provider": "football_data" },
+      { "code": "PL",  "name": "Premier League", "country": "England",  "provider": "football_data" },
+      { "code": "PD",  "name": "La Liga",         "country": "Spain",    "provider": "football_data" },
+      { "code": "SSL", "name": "Süper Lig",       "country": "Turkey",   "provider": "superlig_provider" }
+    ],
+    "hockey": [
+      { "code": "NHL", "name": "NHL", "country": "North America", "provider": "nhl_api" }
+    ]
+  },
+  "prediction_markets": {
+    "football": {
+      "game": ["over_0_5", "over_1_5", "over_2_5", "over_3_5"],
+      "h1":   ["over_0_5_h1", "over_1_5_h1"],
+      "h2":   ["over_0_5_h2", "over_1_5_h2"]
+    },
+    "hockey": {
+      "game": ["over_4_5", "over_5_5", "over_6_5"],
+      "p1":   ["over_0_5_p1", "over_1_5_p1"],
+      "p2":   ["over_0_5_p2", "over_1_5_p2"],
+      "p3":   ["over_0_5_p3", "over_1_5_p3"]
+    }
+  },
+  "ensemble_weights": {
+    "football": {
+      "poisson_mle":     0.50,
+      "dixon_coles":     0.30,
+      "elo_adjusted":    0.20
+    },
+    "hockey": {
+      "poisson_mle":     0.60,
+      "elo_adjusted":    0.40
+    }
+  },
+  "top3_ranking_weights": {
+    "confidence_score":        0.40,
+    "model_agreement_score":   0.30,
+    "prediction_stability":    0.20,
+    "edge_if_available":       0.10
+  },
+  "half_time_ratio_default": {
+    "football": { "h1": 0.45, "h2": 0.55 }
+  },
+  "period_ratio_default": {
+    "hockey": { "p1": 0.32, "p2": 0.34, "p3": 0.34 }
+  }
+}
