@@ -81,37 +81,22 @@ def _log_provider(db: Session, provider: str, endpoint: str, success: bool, reco
 def ingest_today_matches(db: Session) -> int:
     total = 0
 
-    # Football
-    football_leagues = [c for c in settings.ACTIVE_FOOTBALL_LEAGUES if c != "SSL"]
+    # Football — ESPN covers ALL leagues including SSL (no key needed)
+    all_football_leagues = list(settings.ACTIVE_FOOTBALL_LEAGUES)
     fp = get_football_provider()
     t0 = time.time()
     try:
-        matches = fp.get_today_matches(football_leagues)
+        matches = fp.get_today_matches(all_football_leagues)
         for pm in matches:
             comp = _ensure_competition(db, pm.competition_code)
             _upsert_match(db, pm, comp.id)
             total += 1
         db.flush()
         _log_provider(db, fp.name, "today_matches", True, len(matches), duration_ms=int((time.time()-t0)*1000))
+        logger.info(f"Football: {len(matches)} matches from {fp.name}")
     except Exception as e:
         _log_provider(db, fp.name, "today_matches", False, 0, str(e))
         logger.error(f"Football ingestion error: {e}")
-
-    # Süper Lig (separate provider)
-    if "SSL" in settings.ACTIVE_FOOTBALL_LEAGUES:
-        sp = get_superlig_provider()
-        t0 = time.time()
-        try:
-            ssl_matches = sp.get_today_matches(["SSL"])
-            for pm in ssl_matches:
-                comp = _ensure_competition(db, "SSL")
-                _upsert_match(db, pm, comp.id)
-                total += 1
-            db.flush()
-            _log_provider(db, sp.name, "today_matches_ssl", True, len(ssl_matches), duration_ms=int((time.time()-t0)*1000))
-        except Exception as e:
-            _log_provider(db, sp.name, "today_matches_ssl", False, 0, str(e))
-            logger.error(f"Superlig ingestion error: {e}")
 
     # Hockey (NHL)
     hp = get_hockey_provider()
@@ -140,8 +125,6 @@ def ingest_historical_matches(db: Session, seasons: List[str] = None) -> int:
 
     fp = get_football_provider()
     for code in settings.ACTIVE_FOOTBALL_LEAGUES:
-        if code == "SSL":
-            continue
         try:
             matches = fp.get_historical_matches(code, seasons)
             for pm in matches:

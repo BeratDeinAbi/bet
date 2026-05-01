@@ -60,7 +60,10 @@ class NHLProvider(BaseHockeyProvider):
 
     def get_today_matches(self) -> List[ProviderMatch]:
         today = date.today().isoformat()
+        # Try date-specific endpoint first (more reliable than /now)
         data = self._get(f"schedule/{today}")
+        if not data:
+            data = self._get("schedule/now")
         if not data:
             return []
         games = []
@@ -68,6 +71,7 @@ class NHLProvider(BaseHockeyProvider):
             if day.get("date") == today:
                 for game in day.get("games", []):
                     games.append(self._parse_game(game))
+        logger.info(f"NHL: fetched {len(games)} games for {today}")
         return games
 
     def get_historical_matches(self, seasons: List[str]) -> List[ProviderHistoricalMatch]:
