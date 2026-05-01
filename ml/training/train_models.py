@@ -38,6 +38,7 @@ def _fetch_football_matches(db, league_code: str) -> List[Dict]:
             "away_team": m.away_team_name,
             "home_score": m.home_score,
             "away_score": m.away_score,
+            "kickoff_time": m.kickoff_time.isoformat() if m.kickoff_time else None,
             "segments": [{"segment_code": s.segment_code, "home_score": s.home_score,
                           "away_score": s.away_score, "total_goals": s.total_goals} for s in segs],
         })
@@ -62,6 +63,7 @@ def _fetch_nhl_matches(db) -> List[Dict]:
             "away_team": m.away_team_name,
             "home_score": m.home_score,
             "away_score": m.away_score,
+            "kickoff_time": m.kickoff_time.isoformat() if m.kickoff_time else None,
             "segments": [{"segment_code": s.segment_code, "home_score": s.home_score,
                           "away_score": s.away_score, "total_goals": s.total_goals} for s in segs],
         })

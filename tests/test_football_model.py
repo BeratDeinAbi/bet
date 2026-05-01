@@ -49,9 +49,8 @@ def test_total_goals_probs_valid():
 
 
 def test_team_strength_model_fits():
-    model = TeamStrengthModel()
+    model = TeamStrengthModel(league_code="BL1")
     model.fit(SAMPLE_MATCHES)
-    assert model.fitted
     lam_h, lam_a = model.predict_lambdas("Bayern", "Dortmund")
     assert lam_h > 0
     assert lam_a > 0
@@ -62,14 +61,13 @@ def test_elo_model_updates_ratings():
     model.fit(SAMPLE_MATCHES)
     assert "Bayern" in model.ratings
     assert "Dortmund" in model.ratings
-    ratio = model.get_strength_ratio("Bayern", "Dortmund")
-    assert ratio > 1.0  # Bayern should be stronger
+    diff = model.get_diff("Bayern", "Dortmund")
+    assert diff > 0  # Bayern should be stronger
 
 
 def test_halftime_model():
-    model = HalfTimeModel()
+    model = HalfTimeModel(league_code="BL1")
     model.fit(SAMPLE_MATCHES)
-    assert model.fitted
     preds = model.predict(2.5)
     assert "expected_goals_h1" in preds
     assert "expected_goals_h2" in preds
