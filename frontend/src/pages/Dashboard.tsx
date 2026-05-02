@@ -53,8 +53,8 @@ export default function Dashboard() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="font-display font-bold text-white text-2xl">Heutige Spiele</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{today}</p>
+          <h1 className="font-display font-bold text-white text-2xl">Heute &amp; Morgen</h1>
+          <p className="text-gray-500 text-sm mt-0.5">{today} · inkl. anstehender Partien (nächste 36h)</p>
         </div>
         <div className="flex items-center gap-2">
           <button

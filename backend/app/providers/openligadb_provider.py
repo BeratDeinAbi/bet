@@ -15,7 +15,7 @@ Verfügbare Endpoints (Auswahl):
   GET /getbltable/{league}/{season}               Tabelle
 """
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional
 
 import requests
@@ -170,8 +170,21 @@ class OpenLigaDBProvider(BaseFootballProvider):
     # Public API
     # ------------------------------------------------------------------
     def get_today_matches(self, league_codes: List[str]) -> List[ProviderMatch]:
-        today = date.today()
+        """
+        Liefert alle Partien des aktuell offenen Spieltags.
+
+        OpenLigaDB liefert unter ``getmatchdata/{league}`` den nächsten /
+        gerade laufenden Spieltag (typischerweise Fr–Mo). Wir geben alle
+        diese Partien zurück; das Date-Filtern für „heute" macht der
+        Endpoint, damit Bundesliga-Partien morgen oder gestern Abend
+        nicht komplett verloren gehen.
+        """
         matches: List[ProviderMatch] = []
+        now = datetime.now(timezone.utc)
+        # Begrenzung auf ±5 Tage — schützt gegen ältere Spieltage,
+        # die OpenLigaDB manchmal mitliefert.
+        window_lo = now - timedelta(days=5)
+        window_hi = now + timedelta(days=5)
 
         supported = [c for c in league_codes if c in LEAGUE_MAP]
         for code in supported:
@@ -183,10 +196,9 @@ class OpenLigaDBProvider(BaseFootballProvider):
                 kickoff = _parse_dt(raw.get("matchDateTimeUTC") or raw.get("matchDateTime"))
                 if kickoff is None:
                     continue
-                # Compare against UTC date
                 if kickoff.tzinfo is None:
                     kickoff = kickoff.replace(tzinfo=timezone.utc)
-                if kickoff.date() != today:
+                if not (window_lo <= kickoff <= window_hi):
                     continue
                 try:
                     matches.append(self._parse_match(raw, code))

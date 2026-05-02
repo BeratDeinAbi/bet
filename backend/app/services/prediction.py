@@ -4,7 +4,7 @@ Prediction service: loads trained models and generates predictions for today's m
 import os
 import logging
 import pickle
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, timedelta
 from typing import Dict, Optional, List
 
 from sqlalchemy.orm import Session
@@ -182,7 +182,9 @@ def predict_match(db: Session, match: Match) -> Optional[Prediction]:
 
 
 def predict_today(db: Session) -> int:
-    today = date.today()
+    now = datetime.now(timezone.utc)
+    window_lo = now - timedelta(hours=6)
+    window_hi = now + timedelta(hours=36)
     matches = (
         db.query(Match)
         .join(Competition)
@@ -191,8 +193,16 @@ def predict_today(db: Session) -> int:
         )
         .all()
     )
-    # Filter to today's matches
-    today_matches = [m for m in matches if m.kickoff_time and m.kickoff_time.date() == today]
+
+    def _in_window(m):
+        if not m.kickoff_time:
+            return False
+        kt = m.kickoff_time
+        if kt.tzinfo is None:
+            kt = kt.replace(tzinfo=timezone.utc)
+        return window_lo <= kt <= window_hi
+
+    today_matches = [m for m in matches if _in_window(m)]
     count = 0
     for match in today_matches:
         pred = predict_match(db, match)

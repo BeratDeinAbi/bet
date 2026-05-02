@@ -14,6 +14,8 @@ from types import SimpleNamespace
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../backend"))
 
 from app.services.ranking import (
+    _MAX_PROB,
+    _MIN_FAIR_ODDS,
     _candidates_for,
     _informativeness,
     _ranking_score,
@@ -114,6 +116,22 @@ def test_candidates_filtered_by_min_prob():
     cands = _candidates_for(pred, _make_match())
     for c in cands:
         assert c["prob"] >= 0.60
+
+
+def test_candidates_filtered_by_max_prob_fair_odds_floor():
+    """Picks mit Wahrscheinlichkeit > 1/1.24 ≈ 0.806 (faire Quote
+    < 1.24) müssen rausfallen, sonst landen 95-%-„Over 0.5"-Picks
+    immer in der Liste — null Wert für den User."""
+    pred = _make_pred(
+        prob_over_0_5=0.96,   # zu hoch (faire Quote ~1.04)
+        prob_over_1_5=0.85,   # zu hoch (faire Quote ~1.18)
+        prob_over_2_5=0.72,   # OK   (faire Quote ~1.39)
+    )
+    cands = _candidates_for(pred, _make_match())
+    for c in cands:
+        assert c["prob"] <= _MAX_PROB, f"{c} überschreitet Fair-Odds-Floor"
+        fair_odds = 1.0 / c["prob"]
+        assert fair_odds >= _MIN_FAIR_ODDS - 1e-9
 
 
 def test_candidates_include_under_markets():

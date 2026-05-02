@@ -13,7 +13,7 @@ Design goals:
   up with trivial "Over 0.5" picks.
 """
 import logging
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
@@ -29,6 +29,17 @@ logger = logging.getLogger(__name__)
 # this we treat it as a coin-flip that doesn't deserve a "best pick"
 # slot.
 _MIN_PROB = 0.60
+
+# Mindest-Faire-Quote für einen Pick: 1.24 ⇒ Wahrscheinlichkeit
+# höchstens 1/1.24 ≈ 0.806.  Damit fliegen triviale „Over 0.5"-Picks
+# (faire Quote ~1.05) raus und nur Vorschläge mit echtem Wert bleiben.
+_MIN_FAIR_ODDS = 1.24
+_MAX_PROB = 1.0 / _MIN_FAIR_ODDS
+
+# Fenster für „heute" — gleich wie in der API, damit Top3 dieselben
+# Spiele sieht wie der Dashboard-Filter.
+_TODAY_PAST = timedelta(hours=6)
+_TODAY_FUTURE = timedelta(hours=36)
 
 
 def _trust_score(pred: Prediction, edge: Optional[float]) -> float:
@@ -139,7 +150,10 @@ def _candidates_for(pred: Prediction, match: Match) -> List[Dict[str, Any]]:
         add("P3 Total", 0.5, "over", "prob_over_0_5_p3")
         add("P3 Total", 1.5, "over", "prob_over_1_5_p3")
 
-    return [c for c in out if c["prob"] >= _MIN_PROB]
+    # Untere Schwelle: kein Coin-Flip-Pick.
+    # Obere Schwelle: faire Quote muss mind. _MIN_FAIR_ODDS sein →
+    # triviale Lock-Picks (Over 0.5 mit ~95 %) fliegen raus.
+    return [c for c in out if _MIN_PROB <= c["prob"] <= _MAX_PROB]
 
 
 def _best_pick_per_match(db: Session, match: Match,
@@ -175,13 +189,25 @@ def _best_pick_per_match(db: Session, match: Match,
 
 
 def rank_top3_predictions(db: Session) -> Top3Response:
-    today = date.today()
+    now = datetime.now(timezone.utc)
+    window_lo = now - _TODAY_PAST
+    window_hi = now + _TODAY_FUTURE
+
     matches = (
         db.query(Match)
         .join(Competition)
         .all()
     )
-    today_matches = [m for m in matches if m.kickoff_time and m.kickoff_time.date() == today]
+
+    def _in_window(m):
+        if not m.kickoff_time:
+            return False
+        kt = m.kickoff_time
+        if kt.tzinfo is None:
+            kt = kt.replace(tzinfo=timezone.utc)
+        return window_lo <= kt <= window_hi
+
+    today_matches = [m for m in matches if _in_window(m)]
 
     picks: List[Top3Pick] = []
     for match in today_matches:

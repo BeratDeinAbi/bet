@@ -98,23 +98,31 @@ def test_segments_from_match():
     assert h2["home_score"] == 2 and h2["away_score"] == 1
 
 
-def test_get_today_matches_filters_by_date():
+def test_get_today_matches_filters_by_window():
+    """
+    Provider liefert alle Spiele des aktuellen Spieltags zurück
+    (±5-Tage-Fenster).  Das Date-Filtern für „heute" macht der API-
+    Endpoint, damit BL2-Spiele am Vor- oder Folgetag nicht verloren
+    gehen.
+    """
+    from datetime import timedelta
+
     p = OpenLigaDBProvider()
-    today = datetime.now(timezone.utc).replace(hour=18, minute=30, second=0, microsecond=0)
-    today_iso = today.strftime("%Y-%m-%dT%H:%M:%SZ")
-    yesterday_iso = "2000-01-01T18:00:00Z"
+    now = datetime.now(timezone.utc)
+    in_window_iso = (now + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    out_of_window_iso = "2000-01-01T18:00:00Z"
 
     payload = [
-        _sample_match(match_id=1, kickoff=today_iso, finished=False, ft=(0, 0), ht=(0, 0)),
-        _sample_match(match_id=2, kickoff=yesterday_iso, finished=True),
+        _sample_match(match_id=1, kickoff=in_window_iso, finished=False, ft=(0, 0), ht=(0, 0)),
+        _sample_match(match_id=2, kickoff=out_of_window_iso, finished=True),
     ]
 
     with patch.object(p, "_get", return_value=payload) as mocked:
         result = p.get_today_matches(["BL1", "BL2", "PL"])
 
-    # PL is unsupported and gets ignored, both supported leagues query OpenLigaDB
+    # PL ist unsupported und wird ignoriert, BL1 + BL2 fragen OpenLigaDB
     assert mocked.call_count == 2
-    # Each league call returns the same payload, so we expect 2× match_id=1
+    # Jeder Liga-Call liefert dasselbe Payload — also 2× match_id=1
     assert all(m.external_id == "oldb_1" for m in result)
     assert len(result) == 2
 
