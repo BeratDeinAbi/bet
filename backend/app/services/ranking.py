@@ -1,9 +1,20 @@
 """
 Top-3 ranking service: selects the 3 best goal predictions of the day.
+
+Design goals:
+- Diversity: at most one pick per match — no flooding the list with
+  multiple markets of the same fixture.
+- Probability-driven: the actual model probability of the event is the
+  dominant ranking factor — we want the most likely things to happen.
+- Trust: confidence, ensemble agreement and stability act as a
+  multiplier so we don't pick high-prob events from a shaky model.
+- Informativeness: tiny tie-break preferring higher lines (Over 2.5 over
+  Over 0.5) when probabilities are comparable, so we don't always end
+  up with trivial "Over 0.5" picks.
 """
 import logging
 from datetime import datetime, timezone, date
-from typing import List, Dict, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -14,20 +25,60 @@ from app.schemas.prediction import Top3Pick, Top3Response
 logger = logging.getLogger(__name__)
 
 
+# Minimum probability for a candidate market to be considered. Below
+# this we treat it as a coin-flip that doesn't deserve a "best pick"
+# slot.
+_MIN_PROB = 0.60
+
+
+def _trust_score(pred: Prediction, edge: Optional[float]) -> float:
+    """Configurable model-trust score (0..1-ish), uses .env weights."""
+    return (
+        settings.TOP3_W_CONFIDENCE * (pred.confidence_score or 0.0)
+        + settings.TOP3_W_MODEL_AGREEMENT * (pred.model_agreement_score or 0.0)
+        + settings.TOP3_W_STABILITY * (pred.prediction_stability_score or 0.0)
+        + settings.TOP3_W_EDGE * (max(edge, 0.0) if edge is not None else 0.0)
+    )
+
+
+def _informativeness(line: float, direction: str) -> float:
+    """
+    Tiny tie-break in favor of more "interesting" markets.
+
+    Higher Over-lines beat Over 0.5 at equal probability, and Under
+    picks on lower lines beat Under-on-everything.
+    """
+    if direction == "over":
+        return min(line / 3.0, 1.0)
+    # Under: lower line = more informative (Under 1.5 beats Under 5.5)
+    return min(max(0.0, (4.0 - line) / 4.0), 1.0)
+
+
+def _ranking_score(model_prob: float, line: float, direction: str,
+                   trust: float) -> float:
+    """
+    Combined ranking score in roughly the [0, 1] range.
+
+    Weights:
+      - 0.55 * model_prob   → "wahrscheinlich kommt das"
+      - 0.35 * trust        → "und das Modell ist sich sicher"
+      - 0.10 * informativeness  → soft tie-break
+    """
+    info = _informativeness(line, direction)
+    return 0.55 * model_prob + 0.35 * trust + 0.10 * info
+
+
 def _build_pick(match: Match, pred: Prediction, market: str, line: float,
-                direction: str, model_prob: float, odds_line: OddsLine = None) -> Top3Pick:
+                direction: str, model_prob: float,
+                odds_line: Optional[OddsLine] = None) -> Top3Pick:
     fair_odds = round(1.0 / max(model_prob, 0.001), 3)
     bookmaker_odds = odds_line.bookmaker_odds if odds_line else None
     edge = None
-    if bookmaker_odds and odds_line.implied_probability:
+    if bookmaker_odds and odds_line and odds_line.implied_probability:
         edge = round(model_prob - odds_line.implied_probability, 4)
 
-    ranking_score = (
-        settings.TOP3_W_CONFIDENCE * pred.confidence_score
-        + settings.TOP3_W_MODEL_AGREEMENT * pred.model_agreement_score
-        + settings.TOP3_W_STABILITY * pred.prediction_stability_score
-        + settings.TOP3_W_EDGE * (max(edge, 0) if edge is not None else 0)
-    )
+    trust = _trust_score(pred, edge)
+    ranking_score = _ranking_score(model_prob, line, direction, trust)
 
     return Top3Pick(
         match_id=match.id,
@@ -36,7 +87,7 @@ def _build_pick(match: Match, pred: Prediction, market: str, line: float,
         home_team=match.home_team_name,
         away_team=match.away_team_name,
         kickoff_time=match.kickoff_time,
-        market=f"{'Over' if direction == 'over' else 'Under'} {line} {market}",
+        market=f"{'Over' if direction == 'over' else 'Under'} {line} {market}".strip(),
         market_line=line,
         market_direction=direction,
         model_probability=round(model_prob, 4),
@@ -50,51 +101,77 @@ def _build_pick(match: Match, pred: Prediction, market: str, line: float,
     )
 
 
-def _get_candidates(pred: Prediction, match: Match) -> List[Dict[str, Any]]:
-    """Generate all market candidates from a prediction."""
-    candidates = []
+def _candidates_for(pred: Prediction, match: Match) -> List[Dict[str, Any]]:
+    """All viable market candidates for one match."""
+    out: List[Dict[str, Any]] = []
     sport = match.sport
 
-    if sport == "football":
-        # Full game
-        for line, direction, field in [
-            (2.5, "over", "prob_over_2_5"),
-            (1.5, "over", "prob_over_1_5"),
-            (3.5, "over", "prob_over_3_5"),
-            (0.5, "over", "prob_over_0_5"),
-        ]:
-            prob = getattr(pred, field, None)
-            if prob is not None:
-                candidates.append({"market": "Total", "line": line, "direction": direction, "prob": prob})
+    def add(market: str, line: float, direction: str, field: str):
+        prob = getattr(pred, field, None)
+        if prob is None:
+            return
+        out.append({"market": market, "line": line, "direction": direction, "prob": float(prob)})
 
-        # H1
-        if pred.prob_over_0_5_h1 is not None:
-            candidates.append({"market": "H1 Total", "line": 0.5, "direction": "over", "prob": pred.prob_over_0_5_h1})
-        if pred.prob_over_1_5_h1 is not None:
-            candidates.append({"market": "H1 Total", "line": 1.5, "direction": "over", "prob": pred.prob_over_1_5_h1})
-        # H2
-        if pred.prob_over_0_5_h2 is not None:
-            candidates.append({"market": "H2 Total", "line": 0.5, "direction": "over", "prob": pred.prob_over_0_5_h2})
+    if sport == "football":
+        # Full game — both directions
+        for line, fld_o, fld_u in [
+            (0.5, "prob_over_0_5", "prob_under_0_5"),
+            (1.5, "prob_over_1_5", "prob_under_1_5"),
+            (2.5, "prob_over_2_5", "prob_under_2_5"),
+            (3.5, "prob_over_3_5", "prob_under_3_5"),
+        ]:
+            add("Total", line, "over", fld_o)
+            add("Total", line, "under", fld_u)
+
+        # Halves
+        add("H1 Total", 0.5, "over", "prob_over_0_5_h1")
+        add("H1 Total", 1.5, "over", "prob_over_1_5_h1")
+        add("H2 Total", 0.5, "over", "prob_over_0_5_h2")
+        add("H2 Total", 1.5, "over", "prob_over_1_5_h2")
 
     elif sport == "hockey":
-        for line, direction, field in [
-            (5.5, "over", "prob_over_5_5"),
-            (6.5, "over", "prob_over_6_5"),  # extended NHL lines
-            (4.5, "over", "prob_over_4_5"),
-            (5.5, "under", "prob_under_5_5"),
-        ]:
-            prob = getattr(pred, field, None)
-            if prob is not None:
-                candidates.append({"market": "Total", "line": line, "direction": direction, "prob": prob})
+        # NHL totals (4.5/5.5/6.5) aren't stored on Prediction yet —
+        # ranking only uses per-period markets that the model writes.
+        add("P1 Total", 0.5, "over", "prob_over_0_5_p1")
+        add("P1 Total", 1.5, "over", "prob_over_1_5_p1")
+        add("P2 Total", 0.5, "over", "prob_over_0_5_p2")
+        add("P2 Total", 1.5, "over", "prob_over_1_5_p2")
+        add("P3 Total", 0.5, "over", "prob_over_0_5_p3")
+        add("P3 Total", 1.5, "over", "prob_over_1_5_p3")
 
-        # Periods
-        if pred.prob_over_0_5_p1 is not None:
-            candidates.append({"market": "P1 Total", "line": 0.5, "direction": "over", "prob": pred.prob_over_0_5_p1})
-        if pred.prob_over_1_5_p1 is not None:
-            candidates.append({"market": "P1 Total", "line": 1.5, "direction": "over", "prob": pred.prob_over_1_5_p1})
+    return [c for c in out if c["prob"] >= _MIN_PROB]
 
-    # Filter to high-confidence picks (prob > 0.60 or < 0.40 for under)
-    return [c for c in candidates if c["prob"] > 0.58]
+
+def _best_pick_per_match(db: Session, match: Match,
+                         pred: Prediction) -> Optional[Top3Pick]:
+    """Return the single best market pick for one match, or None."""
+    candidates = _candidates_for(pred, match)
+    if not candidates:
+        return None
+
+    best_pick: Optional[Top3Pick] = None
+    for cand in candidates:
+        odds_line = (
+            db.query(OddsLine)
+            .filter(
+                OddsLine.match_id == match.id,
+                OddsLine.line == cand["line"],
+                OddsLine.direction == cand["direction"],
+            )
+            .first()
+        )
+        pick = _build_pick(
+            match=match,
+            pred=pred,
+            market=cand["market"],
+            line=cand["line"],
+            direction=cand["direction"],
+            model_prob=cand["prob"],
+            odds_line=odds_line,
+        )
+        if best_pick is None or pick.ranking_score > best_pick.ranking_score:
+            best_pick = pick
+    return best_pick
 
 
 def rank_top3_predictions(db: Session) -> Top3Response:
@@ -106,34 +183,21 @@ def rank_top3_predictions(db: Session) -> Top3Response:
     )
     today_matches = [m for m in matches if m.kickoff_time and m.kickoff_time.date() == today]
 
-    all_picks: List[Top3Pick] = []
-
+    picks: List[Top3Pick] = []
     for match in today_matches:
         pred = db.query(Prediction).filter(Prediction.match_id == match.id).first()
         if not pred:
             continue
+        best = _best_pick_per_match(db, match, pred)
+        if best is not None:
+            picks.append(best)
 
-        candidates = _get_candidates(pred, match)
-        for cand in candidates:
-            odds_line = db.query(OddsLine).filter(
-                OddsLine.match_id == match.id,
-                OddsLine.line == cand["line"],
-                OddsLine.direction == cand["direction"],
-            ).first()
-            pick = _build_pick(
-                match=match,
-                pred=pred,
-                market=cand["market"],
-                line=cand["line"],
-                direction=cand["direction"],
-                model_prob=cand["prob"],
-                odds_line=odds_line,
-            )
-            all_picks.append(pick)
-
-    # Sort by ranking_score desc, take top 3
-    all_picks.sort(key=lambda p: p.ranking_score, reverse=True)
-    top3 = all_picks[:3]
+    # One pick per match guaranteed by _best_pick_per_match → just sort.
+    picks.sort(
+        key=lambda p: (p.ranking_score, p.model_probability, p.confidence_score),
+        reverse=True,
+    )
+    top3 = picks[:3]
 
     return Top3Response(
         generated_at=datetime.now(timezone.utc),
