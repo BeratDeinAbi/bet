@@ -43,6 +43,23 @@ app.include_router(backtests.router)
 async def on_startup():
     logger.info("Initializing database...")
     init_db()
+
+    # Competition-Zeilen für alle konfigurierten Ligen garantiert anlegen,
+    # damit das Frontend-Dropdown immer alle Ligen zeigt — auch vor dem
+    # ersten Seed-Klick.
+    from app.db.database import SessionLocal
+    from app.services.ingestion import COMPETITIONS, _ensure_competition
+    db = SessionLocal()
+    try:
+        for code in list(settings.ACTIVE_FOOTBALL_LEAGUES) + list(settings.ACTIVE_HOCKEY_LEAGUES):
+            _ensure_competition(db, code)
+        db.commit()
+        logger.info(f"Competitions initialized: {settings.ACTIVE_FOOTBALL_LEAGUES + settings.ACTIVE_HOCKEY_LEAGUES}")
+    except Exception as e:
+        logger.warning(f"Competition init warning: {e}")
+    finally:
+        db.close()
+
     logger.info(f"Database ready. Football provider: {settings.FOOTBALL_PROVIDER}")
 
 
