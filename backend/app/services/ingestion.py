@@ -10,13 +10,22 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Competition, Team, Match, MatchSegment, ProviderLog
 from app.providers.base import ProviderMatch, ProviderHistoricalMatch
-from app.providers.provider_factory import get_football_provider, get_superlig_provider, get_hockey_provider
+from app.providers.provider_factory import (
+    get_football_provider,
+    get_german_football_provider,
+    get_superlig_provider,
+    get_hockey_provider,
+)
 from app.core.config import settings
+
+# OpenLigaDB-Liga-Codes (1. + 2. Bundesliga)
+GERMAN_LEAGUES = {"BL1", "BL2"}
 
 logger = logging.getLogger(__name__)
 
 COMPETITIONS = {
     "BL1":  {"name": "Bundesliga",    "sport": "football", "country": "Germany"},
+    "BL2":  {"name": "2. Bundesliga", "sport": "football", "country": "Germany"},
     "PL":   {"name": "Premier League","sport": "football", "country": "England"},
     "PD":   {"name": "La Liga",       "sport": "football", "country": "Spain"},
     "SSL":  {"name": "Süper Lig",     "sport": "football", "country": "Turkey"},
@@ -81,22 +90,45 @@ def _log_provider(db: Session, provider: str, endpoint: str, success: bool, reco
 def ingest_today_matches(db: Session) -> int:
     total = 0
 
-    # Football — ESPN covers ALL leagues including SSL (no key needed)
-    all_football_leagues = list(settings.ACTIVE_FOOTBALL_LEAGUES)
-    fp = get_football_provider()
-    t0 = time.time()
-    try:
-        matches = fp.get_today_matches(all_football_leagues)
-        for pm in matches:
-            comp = _ensure_competition(db, pm.competition_code)
-            _upsert_match(db, pm, comp.id)
-            total += 1
-        db.flush()
-        _log_provider(db, fp.name, "today_matches", True, len(matches), duration_ms=int((time.time()-t0)*1000))
-        logger.info(f"Football: {len(matches)} matches from {fp.name}")
-    except Exception as e:
-        _log_provider(db, fp.name, "today_matches", False, 0, str(e))
-        logger.error(f"Football ingestion error: {e}")
+    active = list(settings.ACTIVE_FOOTBALL_LEAGUES)
+    german = [c for c in active if c in GERMAN_LEAGUES]
+    other = [c for c in active if c not in GERMAN_LEAGUES]
+
+    # 1. OpenLigaDB für 1. + 2. Bundesliga (kostenlos, ohne API-Key)
+    if german:
+        gp = get_german_football_provider()
+        t0 = time.time()
+        try:
+            matches = gp.get_today_matches(german)
+            for pm in matches:
+                comp = _ensure_competition(db, pm.competition_code)
+                _upsert_match(db, pm, comp.id)
+                total += 1
+            db.flush()
+            _log_provider(db, gp.name, "today_matches", True, len(matches),
+                          duration_ms=int((time.time() - t0) * 1000))
+            logger.info(f"German football ({', '.join(german)}): {len(matches)} matches from {gp.name}")
+        except Exception as e:
+            _log_provider(db, gp.name, "today_matches", False, 0, str(e))
+            logger.error(f"German football ingestion error: {e}")
+
+    # 2. ESPN/football-data für alle übrigen Ligen
+    if other:
+        fp = get_football_provider()
+        t0 = time.time()
+        try:
+            matches = fp.get_today_matches(other)
+            for pm in matches:
+                comp = _ensure_competition(db, pm.competition_code)
+                _upsert_match(db, pm, comp.id)
+                total += 1
+            db.flush()
+            _log_provider(db, fp.name, "today_matches", True, len(matches),
+                          duration_ms=int((time.time() - t0) * 1000))
+            logger.info(f"Football: {len(matches)} matches from {fp.name}")
+        except Exception as e:
+            _log_provider(db, fp.name, "today_matches", False, 0, str(e))
+            logger.error(f"Football ingestion error: {e}")
 
     # Hockey (NHL)
     hp = get_hockey_provider()
@@ -124,9 +156,11 @@ def ingest_historical_matches(db: Session, seasons: List[str] = None) -> int:
     total = 0
 
     fp = get_football_provider()
+    gp = get_german_football_provider()
     for code in settings.ACTIVE_FOOTBALL_LEAGUES:
+        provider = gp if code in GERMAN_LEAGUES else fp
         try:
-            matches = fp.get_historical_matches(code, seasons)
+            matches = provider.get_historical_matches(code, seasons)
             for pm in matches:
                 comp = _ensure_competition(db, pm.competition_code)
                 match = _upsert_match(db, pm, comp.id)

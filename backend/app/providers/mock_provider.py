@@ -40,16 +40,17 @@ class MockFootballProvider(BaseFootballProvider):
     def _generate_today_matches(self, league_codes: List[str]) -> List[ProviderMatch]:
         fixtures = {
             "BL1": [("Bayern München", "Borussia Dortmund"), ("Bayer Leverkusen", "RB Leipzig"), ("Eintracht Frankfurt", "VfB Stuttgart")],
+            "BL2": [("Hamburger SV", "FC Schalke 04"), ("1. FC Köln", "Hertha BSC"), ("Hannover 96", "Fortuna Düsseldorf")],
             "PL": [("Manchester City", "Arsenal"), ("Liverpool", "Chelsea"), ("Tottenham", "Manchester United")],
             "PD": [("Real Madrid", "FC Barcelona"), ("Atletico Madrid", "Sevilla"), ("Athletic Club", "Villarreal")],
             "SSL": [("Galatasaray", "Fenerbahçe"), ("Beşiktaş", "Trabzonspor"), ("Başakşehir", "Adana Demirspor")],
         }
-        times = _today_kickoffs(12, "football")
+        times = _today_kickoffs(15, "football")
         matches, idx = [], 0
         for code, pairs in fixtures.items():
             if code not in league_codes:
                 continue
-            league_names = {"BL1": "Bundesliga", "PL": "Premier League", "PD": "La Liga", "SSL": "Süper Lig"}
+            league_names = {"BL1": "Bundesliga", "BL2": "2. Bundesliga", "PL": "Premier League", "PD": "La Liga", "SSL": "Süper Lig"}
             for home, away in pairs:
                 matches.append(ProviderMatch(
                     external_id=f"mock_fb_{code}_{idx}",
@@ -75,12 +76,13 @@ class MockFootballProvider(BaseFootballProvider):
         rng = random.Random(42)
         fixtures = {
             "BL1": [("Bayern München", "Borussia Dortmund"), ("Bayer Leverkusen", "RB Leipzig")],
+            "BL2": [("Hamburger SV", "FC Schalke 04"), ("1. FC Köln", "Hertha BSC")],
             "PL": [("Manchester City", "Arsenal"), ("Liverpool", "Chelsea")],
             "PD": [("Real Madrid", "FC Barcelona"), ("Atletico Madrid", "Sevilla")],
             "SSL": [("Galatasaray", "Fenerbahçe"), ("Beşiktaş", "Trabzonspor")],
         }
         pairs = fixtures.get(league_code, [("Team A", "Team B")])
-        league_names = {"BL1": "Bundesliga", "PL": "Premier League", "PD": "La Liga", "SSL": "Süper Lig"}
+        league_names = {"BL1": "Bundesliga", "BL2": "2. Bundesliga", "PL": "Premier League", "PD": "La Liga", "SSL": "Süper Lig"}
         historical = []
         base_date = datetime(2024, 8, 1, 15, 0, 0, tzinfo=timezone.utc)
         for i in range(50):

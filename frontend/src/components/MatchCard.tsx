@@ -19,6 +19,7 @@ const SPORT_EMOJI: Record<string, string> = {
 
 const LEAGUE_COLORS: Record<string, string> = {
   BL1: '#e4002b',
+  BL2: '#1f8a3a',
   PL: '#3d195b',
   PD: '#ee8707',
   SSL: '#E30A17',

@@ -1,5 +1,5 @@
 export type Sport = 'football' | 'hockey'
-export type LeagueCode = 'BL1' | 'PL' | 'PD' | 'SSL' | 'NHL'
+export type LeagueCode = 'BL1' | 'BL2' | 'PL' | 'PD' | 'SSL' | 'NHL'
 export type ConfidenceLabel = 'HIGH' | 'MEDIUM' | 'LOW'
 
 export interface Competition {

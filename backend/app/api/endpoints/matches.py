@@ -13,7 +13,7 @@ router = APIRouter(prefix="/matches", tags=["matches"])
 @router.get("/today", response_model=MatchListResponse)
 def get_today_matches(
     sport: Optional[str] = Query(None, description="Filter by sport: football | hockey"),
-    league: Optional[str] = Query(None, description="Filter by league code: BL1, PL, PD, SSL, NHL"),
+    league: Optional[str] = Query(None, description="Filter by league code: BL1, BL2, PL, PD, SSL, NHL"),
     db: Session = Depends(get_db),
 ):
     today = date.today()

@@ -14,6 +14,7 @@ const SPORTS = [
 const LEAGUES = [
   { value: '', label: 'Alle Ligen' },
   { value: 'BL1', label: 'Bundesliga' },
+  { value: 'BL2', label: '2. Bundesliga' },
   { value: 'PL', label: 'Premier League' },
   { value: 'PD', label: 'La Liga' },
   { value: 'SSL', label: 'Süper Lig' },
@@ -107,7 +108,7 @@ export default function Dashboard() {
         <div className="flex gap-1 flex-wrap">
           {LEAGUES
             .filter(l => !sport || l.value === '' ||
-              (sport === 'football' && ['BL1','PL','PD','SSL'].includes(l.value)) ||
+              (sport === 'football' && ['BL1','BL2','PL','PD','SSL'].includes(l.value)) ||
               (sport === 'hockey' && l.value === 'NHL'))
             .map(l => (
               <button

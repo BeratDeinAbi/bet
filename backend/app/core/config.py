@@ -33,8 +33,11 @@ class Settings(BaseSettings):
     HOCKEY_PROVIDER: str = "nhl_api"          # nhl_api | mock
     ODDS_PROVIDER: str = "odds_api"            # odds_api | mock
 
+    # OpenLigaDB (free, no key, Bundesliga & 2. Bundesliga)
+    OPENLIGADB_BASE_URL: str = "https://api.openligadb.de"
+
     # Active leagues
-    ACTIVE_FOOTBALL_LEAGUES: List[str] = ["BL1", "PL", "PD", "SSL"]
+    ACTIVE_FOOTBALL_LEAGUES: List[str] = ["BL1", "BL2", "PL", "PD", "SSL"]
     ACTIVE_HOCKEY_LEAGUES: List[str] = ["NHL"]
 
     # ML Config

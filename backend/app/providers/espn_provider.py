@@ -21,6 +21,7 @@ ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer"
 
 LEAGUE_MAP = {
     "BL1": {"slug": "ger.1",  "name": "Bundesliga"},
+    "BL2": {"slug": "ger.2",  "name": "2. Bundesliga"},
     "PL":  {"slug": "eng.1",  "name": "Premier League"},
     "PD":  {"slug": "esp.1",  "name": "La Liga"},
     "SSL": {"slug": "tur.1",  "name": "Süper Lig"},
