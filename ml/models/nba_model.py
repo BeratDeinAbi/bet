@@ -46,7 +46,10 @@ NBA_PRIOR = {
 
 # Standard-Linien für die Wettmärkte
 TOTAL_LINES = [200.5, 210.5, 215.5, 220.5, 225.5, 230.5, 235.5, 240.5]
-QUARTER_LINES = [45.5, 50.5, 55.5, 60.5]
+# Feiner-granulare Quarter-Linien — damit der „Top 2 Overs ≥ 80 %"-Filter
+# im Frontend in typischen Matchups (~56 Quarterpunkte) auch 2 Treffer
+# liefert (sonst springt nur 45.5 sicher über 80 %).
+QUARTER_LINES = [42.5, 45.5, 47.5, 50.5, 52.5, 55.5, 57.5, 60.5]
 
 
 def normal_prob_over(mean: float, std: float, line: float) -> float:
