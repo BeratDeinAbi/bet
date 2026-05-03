@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import date
+from datetime import datetime, timedelta, timezone
 
 from app.db.database import get_db
 from app.db.models import Match, Prediction, Competition
@@ -9,6 +9,19 @@ from app.schemas.prediction import PredictionSchema, PredictionWithMatchSchema, 
 from app.services.ranking import rank_top3_predictions
 
 router = APIRouter(prefix="/predictions", tags=["predictions"])
+
+
+TODAY_WINDOW_PAST = timedelta(hours=6)
+TODAY_WINDOW_FUTURE = timedelta(hours=36)
+
+
+def _within_today_window(kickoff) -> bool:
+    if kickoff is None:
+        return False
+    if kickoff.tzinfo is None:
+        kickoff = kickoff.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    return (now - TODAY_WINDOW_PAST) <= kickoff <= (now + TODAY_WINDOW_FUTURE)
 
 
 def _enrich(pred: Prediction, match: Match) -> PredictionWithMatchSchema:
@@ -28,7 +41,6 @@ def get_today_predictions(
     league: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    today = date.today()
     query = db.query(Prediction).join(Match).join(Competition)
     if sport:
         query = query.filter(Match.sport == sport)
@@ -39,7 +51,7 @@ def get_today_predictions(
     result = []
     for pred in preds:
         match = pred.match
-        if match and match.kickoff_time and match.kickoff_time.date() == today:
+        if match and _within_today_window(match.kickoff_time):
             result.append(_enrich(pred, match))
     return result
 

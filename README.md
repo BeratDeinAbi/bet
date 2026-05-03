@@ -59,9 +59,9 @@ npm run dev
 
 Dashboard: http://localhost:5173
 
-### 4. Demo-Daten laden
+### 4. Daten laden
 
-Im Browser auf **"Demo-Daten laden"** klicken oder:
+Im Browser auf **"Daten laden"** klicken oder:
 
 ```bash
 python scripts/seed.py
@@ -112,7 +112,7 @@ scripts/           Setup + Seed
 | GET /matches/today | Heutige Spiele |
 | GET /predictions/today | Alle Prognosen |
 | GET /predictions/top3 | Top 3 Picks |
-| POST /admin/seed | Demo-Daten + Training |
+| POST /admin/seed | Daten laden + Training |
 | GET /backtests/summary | Backtest-Ergebnisse |
 
 ## ML-Modelle

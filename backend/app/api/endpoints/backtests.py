@@ -48,6 +48,7 @@ def get_model_status(db: Session = Depends(get_db)):
     statuses = []
     model_files = {
         "football_BL1": ("football", "FootballEnsemble"),
+        "football_BL2": ("football", "FootballEnsemble"),
         "football_PL": ("football", "FootballEnsemble"),
         "football_PD": ("football", "FootballEnsemble"),
         "football_SSL": ("football", "FootballEnsemble"),

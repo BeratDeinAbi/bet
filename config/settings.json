@@ -2,7 +2,8 @@
   "version": "1.0.0",
   "active_competitions": {
     "football": [
-      { "code": "BL1", "name": "Bundesliga",     "country": "Germany",  "provider": "football_data" },
+      { "code": "BL1", "name": "Bundesliga",     "country": "Germany",  "provider": "openligadb" },
+      { "code": "BL2", "name": "2. Bundesliga",  "country": "Germany",  "provider": "openligadb" },
       { "code": "PL",  "name": "Premier League", "country": "England",  "provider": "football_data" },
       { "code": "PD",  "name": "La Liga",         "country": "Spain",    "provider": "football_data" },
       { "code": "SSL", "name": "Süper Lig",       "country": "Turkey",   "provider": "superlig_provider" }

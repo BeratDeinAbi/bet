@@ -75,7 +75,7 @@ def train_football_models() -> Dict[str, str]:
     db = SessionLocal()
     paths = {}
     try:
-        for league_code in ["BL1", "PL", "PD", "SSL"]:
+        for league_code in ["BL1", "BL2", "PL", "PD", "SSL"]:
             matches = _fetch_football_matches(db, league_code)
             logger.info(f"Training football model for {league_code} with {len(matches)} matches")
             ensemble = FootballEnsemble(league_code)

@@ -14,6 +14,7 @@ const SPORTS = [
 const LEAGUES = [
   { value: '', label: 'Alle Ligen' },
   { value: 'BL1', label: 'Bundesliga' },
+  { value: 'BL2', label: '2. Bundesliga' },
   { value: 'PL', label: 'Premier League' },
   { value: 'PD', label: 'La Liga' },
   { value: 'SSL', label: 'Süper Lig' },
@@ -52,8 +53,8 @@ export default function Dashboard() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="font-display font-bold text-white text-2xl">Heutige Spiele</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{today}</p>
+          <h1 className="font-display font-bold text-white text-2xl">Heute &amp; Morgen</h1>
+          <p className="text-gray-500 text-sm mt-0.5">{today} · inkl. anstehender Partien (nächste 36h)</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -62,7 +63,7 @@ export default function Dashboard() {
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-surface-border text-gray-400 hover:text-white hover:border-gray-600 transition-colors disabled:opacity-50"
           >
             {seedMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
-            Demo-Daten laden
+            Daten laden
           </button>
           <button
             onClick={() => refreshMutation.mutate()}
@@ -78,7 +79,7 @@ export default function Dashboard() {
       {/* Seed Result */}
       {seedMutation.data && (
         <div className="mb-4 p-3 rounded-lg bg-accent-green/10 border border-accent-green/20 text-accent-green text-sm">
-          Demo-Daten geladen: {seedMutation.data.matches_ingested} Spiele, {seedMutation.data.predictions_generated} Prognosen
+          Daten geladen: {seedMutation.data.matches_ingested} Spiele, {seedMutation.data.predictions_generated} Prognosen
         </div>
       )}
 
@@ -107,7 +108,7 @@ export default function Dashboard() {
         <div className="flex gap-1 flex-wrap">
           {LEAGUES
             .filter(l => !sport || l.value === '' ||
-              (sport === 'football' && ['BL1','PL','PD','SSL'].includes(l.value)) ||
+              (sport === 'football' && ['BL1','BL2','PL','PD','SSL'].includes(l.value)) ||
               (sport === 'hockey' && l.value === 'NHL'))
             .map(l => (
               <button
@@ -150,7 +151,7 @@ export default function Dashboard() {
         <div className="text-center py-16">
           <p className="text-white font-medium mb-2">Keine Prognosen für heute</p>
           <p className="text-gray-500 text-sm">
-            Klicke <strong>Demo-Daten laden</strong> um Beispieldaten zu generieren.
+            Klicke <strong>Daten laden</strong> um Spiele und Prognosen zu generieren.
           </p>
         </div>
       )}

@@ -32,6 +32,7 @@ np.random.seed(SEED)
 # ---------------------------------------------------------------------------
 LEAGUE_PRIORS = {
     "BL1": {"avg_goals": 3.10, "home_adv": 1.20, "h1_ratio": 0.45},
+    "BL2": {"avg_goals": 2.85, "home_adv": 1.22, "h1_ratio": 0.45},
     "PL":  {"avg_goals": 2.85, "home_adv": 1.18, "h1_ratio": 0.44},
     "PD":  {"avg_goals": 2.55, "home_adv": 1.22, "h1_ratio": 0.43},
     "SSL": {"avg_goals": 2.95, "home_adv": 1.25, "h1_ratio": 0.46},

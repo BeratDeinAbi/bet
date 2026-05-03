@@ -6,6 +6,25 @@ from app.providers.mock_provider import MockFootballProvider, MockHockeyProvider
 logger = logging.getLogger(__name__)
 
 
+def get_german_football_provider() -> BaseFootballProvider:
+    """
+    Provider für 1. + 2. Bundesliga.
+
+    OpenLigaDB ist die bevorzugte Quelle (kostenlos, kein Key, kein Rate-Limit,
+    deutsches Community-Projekt mit Halbzeit-Ergebnissen). Fällt zurück auf
+    den Default-Football-Provider, falls OpenLigaDB nicht erreichbar ist.
+    """
+    try:
+        from app.providers.openligadb_provider import OpenLigaDBProvider
+        oldb = OpenLigaDBProvider()
+        if oldb.is_available():
+            logger.info("German football provider: OpenLigaDB (free, no key)")
+            return oldb
+    except Exception as e:
+        logger.warning(f"OpenLigaDB provider init failed: {e}")
+    return get_football_provider()
+
+
 def get_football_provider() -> BaseFootballProvider:
     # 1. Try ESPN (free, no key, covers all 4 leagues)
     try:
