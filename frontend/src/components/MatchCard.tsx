@@ -34,6 +34,24 @@ function getNbaProb(p: Prediction, key: string): number | undefined {
   return typeof v === 'number' ? v : undefined
 }
 
+// Top 2 Over-Linien pro Quarter mit Wahrscheinlichkeit ≥ 80 %.
+// Sortiert nach Linie absteigend (höhere Linie = informativer Pick).
+function bestQuarterOvers(
+  p: Prediction,
+  quarter: 'q1' | 'q2' | 'q3' | 'q4',
+): { line: number; prob: number }[] {
+  const re = new RegExp(`^prob_over_(\\d+)_5_${quarter}$`)
+  const overs: { line: number; prob: number }[] = []
+  for (const [k, v] of Object.entries(p.extra_markets ?? {})) {
+    if (typeof v !== 'number') continue
+    const m = k.match(re)
+    if (m && v >= 0.80) {
+      overs.push({ line: parseFloat(`${m[1]}.5`), prob: v })
+    }
+  }
+  return overs.sort((a, b) => b.line - a.line).slice(0, 2)
+}
+
 export default function MatchCard({ prediction: p }: Props) {
   const isFootball = p.sport === 'football'
   const isBasketball = p.sport === 'basketball'
@@ -157,15 +175,24 @@ export default function MatchCard({ prediction: p }: Props) {
         <div className="grid grid-cols-2 gap-2 mb-3">
           {(['q1', 'q2', 'q3', 'q4'] as const).map((q) => {
             const exp = getNbaProb(p, `expected_points_${q}`) ?? 0
-            const o55 = getNbaProb(p, `prob_over_55_5_${q}`) ?? 0
-            const o60 = getNbaProb(p, `prob_over_60_5_${q}`) ?? 0
+            const top2 = bestQuarterOvers(p, q)
             return (
               <div key={q} className="bg-surface-low rounded-lg p-2">
                 <p className="text-gray-500 text-xs mb-1">Q{q.slice(1)}</p>
                 <p className="font-display font-bold text-white">{exp.toFixed(1)}</p>
                 <div className="mt-1 space-y-1">
-                  <ProbBar label="O 55.5" probability={o55} color="#60a5fa" />
-                  <ProbBar label="O 60.5" probability={o60} color="#a78bfa" />
+                  {top2.length > 0 ? (
+                    top2.map(({ line, prob }, i) => (
+                      <ProbBar
+                        key={line}
+                        label={`O ${line}`}
+                        probability={prob}
+                        color={i === 0 ? '#8eff71' : '#60a5fa'}
+                      />
+                    ))
+                  ) : (
+                    <p className="text-gray-600 text-[10px] italic">kein Over ≥ 80 %</p>
+                  )}
                 </div>
               </div>
             )
