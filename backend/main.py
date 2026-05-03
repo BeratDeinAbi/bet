@@ -55,6 +55,7 @@ async def on_startup():
             list(settings.ACTIVE_FOOTBALL_LEAGUES)
             + list(settings.ACTIVE_HOCKEY_LEAGUES)
             + list(settings.ACTIVE_BASKETBALL_LEAGUES)
+            + list(settings.ACTIVE_BASEBALL_LEAGUES)
         )
         for code in all_leagues:
             _ensure_competition(db, code)

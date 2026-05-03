@@ -84,6 +84,25 @@ def get_basketball_provider() -> BaseHockeyProvider:
     raise RuntimeError("No basketball provider available.")
 
 
+def get_baseball_provider() -> BaseHockeyProvider:
+    """MLB via offizielle MLB-Stats-API (kostenlos, kein Key)."""
+    try:
+        from app.providers.mlb_provider import MLBProvider
+        mlb = MLBProvider()
+        if mlb.is_available():
+            logger.info("Baseball provider: MLB Stats API (free, no key)")
+            return mlb
+    except Exception as e:
+        logger.warning(f"MLB provider init failed: {e}")
+
+    if settings.USE_MOCK_FALLBACK:
+        from app.providers.mock_provider import MockBaseballProvider
+        logger.info("Baseball provider: Mock (fallback)")
+        return MockBaseballProvider()
+
+    raise RuntimeError("No baseball provider available.")
+
+
 def get_hockey_provider() -> BaseHockeyProvider:
     # 1. NHL public API (no key required)
     try:

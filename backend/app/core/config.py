@@ -39,10 +39,14 @@ class Settings(BaseSettings):
     # NBA via ESPN public API
     NBA_API_BASE_URL: str = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba"
 
+    # MLB via offizielle Stats API (kostenlos, kein Key)
+    MLB_API_BASE_URL: str = "https://statsapi.mlb.com/api/v1"
+
     # Active leagues
     ACTIVE_FOOTBALL_LEAGUES: List[str] = ["BL1", "BL2", "PL", "PD", "SSL"]
     ACTIVE_HOCKEY_LEAGUES: List[str] = ["NHL"]
     ACTIVE_BASKETBALL_LEAGUES: List[str] = ["NBA"]
+    ACTIVE_BASEBALL_LEAGUES: List[str] = ["MLB"]
 
     # ML Config
     MODEL_DIR: str = "./data/models"
