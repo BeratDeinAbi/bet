@@ -177,3 +177,89 @@ class MockHockeyProvider(BaseHockeyProvider):
                 segments=p_scores,
             ))
         return historical
+
+
+class MockBasketballProvider(BaseHockeyProvider):
+    """NBA-Mock — Demo-/Fallback-Daten mit realistischen Score-Niveaus."""
+
+    name = "mock_basketball"
+
+    PAIRS = [
+        ("Los Angeles Lakers", "Boston Celtics"),
+        ("Golden State Warriors", "Denver Nuggets"),
+        ("Milwaukee Bucks", "Philadelphia 76ers"),
+        ("Miami Heat", "New York Knicks"),
+    ]
+
+    def get_today_matches(self) -> List[ProviderMatch]:
+        data = _load_json("nba_today.json")
+        if data:
+            return [ProviderMatch(**m) for m in data.get("matches", [])]
+        return self._generate_today_matches()
+
+    def _generate_today_matches(self) -> List[ProviderMatch]:
+        times = _today_kickoffs(4, "basketball")
+        return [
+            ProviderMatch(
+                external_id=f"mock_nba_{i}",
+                sport="basketball",
+                competition_code="NBA",
+                competition_name="NBA",
+                home_team_name=h,
+                away_team_name=a,
+                kickoff_time=times[i % len(times)],
+                status="SCHEDULED",
+            )
+            for i, (h, a) in enumerate(self.PAIRS)
+        ]
+
+    def get_historical_matches(self, seasons: List[str]) -> List[ProviderHistoricalMatch]:
+        data = _load_json("nba_historical.json")
+        if data:
+            return [ProviderHistoricalMatch(**m) for m in data.get("matches", [])]
+        return self._generate_historical()
+
+    def _generate_historical(self) -> List[ProviderHistoricalMatch]:
+        import random
+        rng = random.Random(42)
+        historical: List[ProviderHistoricalMatch] = []
+        base_date = datetime(2024, 11, 1, 19, 30, 0, tzinfo=timezone.utc)
+        for i in range(80):
+            home, away = self.PAIRS[i % len(self.PAIRS)]
+            home_score = max(85, int(rng.gauss(114, 12)))
+            away_score = max(85, int(rng.gauss(110, 12)))
+            quarters = []
+            remaining_h, remaining_a = home_score, away_score
+            for q in range(1, 5):
+                if q < 4:
+                    qh = max(15, int(rng.gauss(home_score / 4.0, 3)))
+                    qa = max(15, int(rng.gauss(away_score / 4.0, 3)))
+                    qh = min(qh, remaining_h - 15 * (4 - q))
+                    qa = min(qa, remaining_a - 15 * (4 - q))
+                    qh = max(qh, 15)
+                    qa = max(qa, 15)
+                else:
+                    qh, qa = remaining_h, remaining_a
+                remaining_h -= qh
+                remaining_a -= qa
+                quarters.append({
+                    "segment_code": f"Q{q}",
+                    "home_score": qh,
+                    "away_score": qa,
+                    "total_goals": qh + qa,
+                })
+            kickoff = (base_date + timedelta(days=i * 2)).isoformat()
+            historical.append(ProviderHistoricalMatch(
+                external_id=f"mock_nba_hist_{i}",
+                sport="basketball",
+                competition_code="NBA",
+                competition_name="NBA",
+                home_team_name=home,
+                away_team_name=away,
+                kickoff_time=kickoff,
+                status="FINISHED",
+                home_score=home_score,
+                away_score=away_score,
+                segments=quarters,
+            ))
+        return historical

@@ -140,6 +140,11 @@ class Prediction(Base):
     model_agreement_score = Column(Float, default=0.5)
     prediction_stability_score = Column(Float, default=0.5)
 
+    # Sport-spezifische Erweiterungen (NBA Total-Linien 200.5–240.5,
+    # Q1–Q4-Punkte usw.).  Hält das Schema schlank: keine 30 Spalten
+    # für jede Liga, sondern flexibler JSON-Slot für hohe Score-Sportarten.
+    extra_markets = Column(JSON, nullable=True)
+
     explanation = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

@@ -15,6 +15,7 @@ function formatTime(iso: string) {
 const SPORT_EMOJI: Record<string, string> = {
   football: '⚽',
   hockey: '🏒',
+  basketball: '🏀',
 }
 
 const LEAGUE_COLORS: Record<string, string> = {
@@ -24,10 +25,18 @@ const LEAGUE_COLORS: Record<string, string> = {
   PD: '#ee8707',
   SSL: '#E30A17',
   NHL: '#003087',
+  NBA: '#c8102e',
+}
+
+// NBA-Linie aus extra_markets ziehen
+function getNbaProb(p: Prediction, key: string): number | undefined {
+  const v = p.extra_markets?.[key]
+  return typeof v === 'number' ? v : undefined
 }
 
 export default function MatchCard({ prediction: p }: Props) {
   const isFootball = p.sport === 'football'
+  const isBasketball = p.sport === 'basketball'
   const leagueColor = LEAGUE_COLORS[p.league] || '#444'
 
   return (
@@ -70,21 +79,38 @@ export default function MatchCard({ prediction: p }: Props) {
         </div>
       </div>
 
-      {/* Total Goals */}
-      <div className="bg-surface-low rounded-lg p-3 mb-3">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-xs text-gray-400 font-medium">Gesamt erwartet</span>
-          <span className="font-display font-bold text-accent-green text-lg">
-            {p.expected_total_goals.toFixed(2)}
-          </span>
+      {/* Total — NBA hat eigene High-Score-Linien aus extra_markets */}
+      {isBasketball ? (
+        <div className="bg-surface-low rounded-lg p-3 mb-3">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs text-gray-400 font-medium">Gesamtpunkte erwartet</span>
+            <span className="font-display font-bold text-accent-green text-lg">
+              {p.expected_total_goals.toFixed(1)}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <ProbBar label="Over 210.5" probability={getNbaProb(p, 'prob_over_210_5') ?? 0} />
+            <ProbBar label="Over 220.5" probability={getNbaProb(p, 'prob_over_220_5') ?? 0} color="#8eff71" />
+            <ProbBar label="Over 230.5" probability={getNbaProb(p, 'prob_over_230_5') ?? 0} color="#fbbf24" />
+            <ProbBar label="Under 220.5" probability={getNbaProb(p, 'prob_under_220_5') ?? 0} color="#f87171" />
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <ProbBar label="Over 1.5" probability={p.prob_over_1_5} />
-          <ProbBar label="Over 2.5" probability={p.prob_over_2_5} color="#8eff71" />
-          <ProbBar label="Over 3.5" probability={p.prob_over_3_5} color="#fbbf24" />
-          <ProbBar label="Under 2.5" probability={p.prob_under_2_5} color="#f87171" />
+      ) : (
+        <div className="bg-surface-low rounded-lg p-3 mb-3">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs text-gray-400 font-medium">Gesamt erwartet</span>
+            <span className="font-display font-bold text-accent-green text-lg">
+              {p.expected_total_goals.toFixed(2)}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <ProbBar label="Over 1.5" probability={p.prob_over_1_5} />
+            <ProbBar label="Over 2.5" probability={p.prob_over_2_5} color="#8eff71" />
+            <ProbBar label="Over 3.5" probability={p.prob_over_3_5} color="#fbbf24" />
+            <ProbBar label="Under 2.5" probability={p.prob_under_2_5} color="#f87171" />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Segments */}
       {isFootball && p.expected_goals_h1 !== undefined && (
@@ -108,7 +134,7 @@ export default function MatchCard({ prediction: p }: Props) {
         </div>
       )}
 
-      {!isFootball && p.expected_goals_p1 !== undefined && (
+      {p.sport === 'hockey' && p.expected_goals_p1 !== undefined && (
         <div className="grid grid-cols-3 gap-2 mb-3">
           {[
             { label: 'P1', exp: p.expected_goals_p1, o05: p.prob_over_0_5_p1, o15: p.prob_over_1_5_p1 },
@@ -124,6 +150,26 @@ export default function MatchCard({ prediction: p }: Props) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {isBasketball && (
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          {(['q1', 'q2', 'q3', 'q4'] as const).map((q) => {
+            const exp = getNbaProb(p, `expected_points_${q}`) ?? 0
+            const o55 = getNbaProb(p, `prob_over_55_5_${q}`) ?? 0
+            const o60 = getNbaProb(p, `prob_over_60_5_${q}`) ?? 0
+            return (
+              <div key={q} className="bg-surface-low rounded-lg p-2">
+                <p className="text-gray-500 text-xs mb-1">Q{q.slice(1)}</p>
+                <p className="font-display font-bold text-white">{exp.toFixed(1)}</p>
+                <div className="mt-1 space-y-1">
+                  <ProbBar label="O 55.5" probability={o55} color="#60a5fa" />
+                  <ProbBar label="O 60.5" probability={o60} color="#a78bfa" />
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 

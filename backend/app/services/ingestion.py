@@ -15,6 +15,7 @@ from app.providers.provider_factory import (
     get_german_football_provider,
     get_superlig_provider,
     get_hockey_provider,
+    get_basketball_provider,
 )
 from app.core.config import settings
 
@@ -30,6 +31,7 @@ COMPETITIONS = {
     "PD":   {"name": "La Liga",       "sport": "football", "country": "Spain"},
     "SSL":  {"name": "Süper Lig",     "sport": "football", "country": "Turkey"},
     "NHL":  {"name": "NHL",           "sport": "hockey",   "country": "North America"},
+    "NBA":  {"name": "NBA",           "sport": "basketball","country": "USA"},
 }
 
 
@@ -176,6 +178,35 @@ def ingest_today_matches(db: Session) -> int:
         _log_provider(db, hp.name, "today_matches", False, 0, str(e))
         logger.error(f"NHL ingestion error: {e}")
 
+    # Basketball (NBA)
+    bp = get_basketball_provider()
+    t0 = time.time()
+    nba_count = 0
+    try:
+        nba_matches = bp.get_today_matches()
+        for pm in nba_matches:
+            comp = _ensure_competition(db, "NBA")
+            _upsert_match(db, pm, comp.id)
+            total += 1
+            nba_count += 1
+        db.flush()
+        _log_provider(db, bp.name, "today_matches", True, len(nba_matches),
+                      duration_ms=int((time.time() - t0) * 1000))
+        logger.info(f"NBA: {len(nba_matches)} matches from {bp.name}")
+    except Exception as e:
+        _log_provider(db, bp.name, "today_matches", False, 0, str(e))
+        logger.error(f"NBA ingestion error: {e}")
+
+    # Mock-Fallback wenn der NBA-Provider nichts liefert (off-day, kein Netz…)
+    if nba_count == 0 and settings.USE_MOCK_FALLBACK:
+        from app.providers.mock_provider import MockBasketballProvider
+        for pm in MockBasketballProvider().get_today_matches():
+            comp = _ensure_competition(db, "NBA")
+            _upsert_match(db, pm, comp.id)
+            total += 1
+        db.flush()
+        logger.info("NBA Mock-Fallback aktiv für heute")
+
     db.commit()
     logger.info(f"Ingested {total} matches for today")
     return total
@@ -231,6 +262,30 @@ def ingest_historical_matches(db: Session, seasons: List[str] = None) -> int:
             total += 1
     except Exception as e:
         logger.error(f"Historical NHL error: {e}")
+
+    # NBA historical (ESPN scoreboard sampling)
+    bp = get_basketball_provider()
+    try:
+        nba_hist = bp.get_historical_matches(seasons)
+        if not nba_hist and settings.USE_MOCK_FALLBACK:
+            from app.providers.mock_provider import MockBasketballProvider
+            nba_hist = MockBasketballProvider().get_historical_matches(seasons)
+            logger.info(f"Historical NBA mock fallback: {len(nba_hist)} Spiele")
+        for pm in nba_hist:
+            comp = _ensure_competition(db, "NBA")
+            match = _upsert_match(db, pm, comp.id)
+            db.flush()
+            if hasattr(pm, "segments") and pm.segments:
+                for seg in pm.segments:
+                    existing = db.query(MatchSegment).filter(
+                        MatchSegment.match_id == match.id,
+                        MatchSegment.segment_code == seg["segment_code"]
+                    ).first()
+                    if not existing:
+                        db.add(MatchSegment(match_id=match.id, **seg))
+            total += 1
+    except Exception as e:
+        logger.error(f"Historical NBA error: {e}")
 
     db.commit()
     logger.info(f"Ingested {total} historical matches")

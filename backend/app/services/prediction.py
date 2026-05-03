@@ -38,6 +38,11 @@ def _get_nhl_model():
     return _load_model("hockey_NHL", path)
 
 
+def _get_nba_model():
+    path = os.path.join(settings.MODEL_DIR, "basketball_NBA.pkl")
+    return _load_model("basketball_NBA", path)
+
+
 def _fallback_football_predict(home_team: str, away_team: str) -> Dict:
     """Rule-based fallback when no model is trained."""
     from scipy.stats import poisson
@@ -52,6 +57,35 @@ def _fallback_football_predict(home_team: str, away_team: str) -> Dict:
         "expected_home_goals": lam_h, "expected_away_goals": lam_a,
         "expected_total_goals": total, "model_agreement_score": 0.5,
         **ou, **seg,
+    }
+
+
+def _fallback_nba_predict(home_team: str, away_team: str) -> Dict:
+    """Regelbasierter Fallback wenn kein NBA-Modell trainiert ist."""
+    from ml.models.nba_model import (
+        NBA_PRIOR, NBAQuarterModel, TOTAL_LINES, normal_prob_over,
+    )
+    avg = NBA_PRIOR["avg_points"]
+    home_adv = NBA_PRIOR["home_adv"]
+    mu_h = (avg / 2.0) * home_adv
+    mu_a = avg / 2.0
+    total = mu_h + mu_a
+    total_std = NBA_PRIOR["total_std"]
+    ou = {}
+    for line in TOTAL_LINES:
+        key = str(line).replace(".", "_")
+        p = normal_prob_over(total, total_std, line)
+        ou[f"prob_over_{key}"] = round(min(max(p, 0.001), 0.999), 4)
+        ou[f"prob_under_{key}"] = round(1.0 - ou[f"prob_over_{key}"], 4)
+    quarters = NBAQuarterModel().predict(total)
+    return {
+        "expected_home_points": round(mu_h, 2),
+        "expected_away_points": round(mu_a, 2),
+        "expected_total_points": round(total, 2),
+        "expected_total_std": round(total_std, 2),
+        "model_agreement_score": 0.5,
+        **ou,
+        **quarters,
     }
 
 
@@ -84,8 +118,8 @@ def _confidence_label(score: float) -> str:
 
 
 def _generate_explanation(sport: str, preds: Dict, home_team: str, away_team: str) -> str:
-    total = preds.get("expected_total_goals", 0)
     if sport == "football":
+        total = preds.get("expected_total_goals", 0)
         h1 = preds.get("expected_goals_h1", 0)
         if total > 3.0:
             return f"Beide Teams zeigen hohe Rolling Goal Averages — erhöhte Tor-Erwartung von {total:.1f} Toren gesamt."
@@ -93,14 +127,24 @@ def _generate_explanation(sport: str, preds: Dict, home_team: str, away_team: st
             return f"Defensivstarke Teams — niedrige Tor-Erwartung von {total:.1f} Toren. H1-Erwartung: {h1:.1f}."
         else:
             return f"Ausgeglichenes Spiel erwartet: {total:.1f} Gesamttore, davon {h1:.1f} in H1."
-    else:
-        p1 = preds.get("expected_goals_p1", 0)
-        p2 = preds.get("expected_goals_p2", 0)
+    if sport == "basketball":
+        total = preds.get("expected_total_points", 0)
+        mu_h = preds.get("expected_home_points", 0)
+        mu_a = preds.get("expected_away_points", 0)
+        tempo = "Hoher Tempo-Run" if total > 230 else ("Defensives Spiel" if total < 215 else "Standard-Tempo")
         return (
-            f"NHL-Matchup: {home_team} vs {away_team}. "
-            f"Erwartet {total:.1f} Gesamttore — P1: {p1:.1f}, P2: {p2:.1f}. "
-            f"{'Hohes Offensivtempo erwartet.' if total > 6.0 else 'Defensiv ausgeglichenes Spiel.'}"
+            f"NBA: {home_team} {mu_h:.0f} – {mu_a:.0f} {away_team}. "
+            f"Erwartete Gesamtpunkte: {total:.1f}. {tempo}."
         )
+    # hockey
+    total = preds.get("expected_total_goals", 0)
+    p1 = preds.get("expected_goals_p1", 0)
+    p2 = preds.get("expected_goals_p2", 0)
+    return (
+        f"NHL-Matchup: {home_team} vs {away_team}. "
+        f"Erwartet {total:.1f} Gesamttore — P1: {p1:.1f}, P2: {p2:.1f}. "
+        f"{'Hohes Offensivtempo erwartet.' if total > 6.0 else 'Defensiv ausgeglichenes Spiel.'}"
+    )
 
 
 def predict_match(db: Session, match: Match) -> Optional[Prediction]:
@@ -127,6 +171,12 @@ def predict_match(db: Session, match: Match) -> Optional[Prediction]:
             raw_preds = model.predict(home, away)
         else:
             raw_preds = _fallback_nhl_predict(home, away)
+    elif sport == "basketball":
+        model = _get_nba_model()
+        if model and model.fitted:
+            raw_preds = model.predict(home, away)
+        else:
+            raw_preds = _fallback_nba_predict(home, away)
     else:
         return None
 
@@ -139,19 +189,59 @@ def predict_match(db: Session, match: Match) -> Optional[Prediction]:
 
     explanation = _generate_explanation(sport, raw_preds, home, away)
 
+    # NBA hat ein eigenes Scoring-Niveau (200+ Punkte) — die kleinen
+    # 0.5/1.5/2.5/3.5-Spalten passen nicht.  Wir packen alle NBA-
+    # spezifischen Märkte (200.5–240.5 Total + Q1–Q4) in extra_markets.
+    extra_markets = None
+    if sport == "basketball":
+        extra_markets = {
+            k: v for k, v in raw_preds.items()
+            if k.startswith("prob_over_") or k.startswith("prob_under_")
+            or k.startswith("expected_points_") or k.startswith("expected_total_")
+            or k.startswith("expected_home_points") or k.startswith("expected_away_points")
+            or k in ("total_lines_used", "quarter_lines_used")
+        }
+
+    # Schema-Spalten: für Basketball mit Sentinel-Werten füllen, damit
+    # NOT-NULL-Felder gesetzt sind; die echten Punktwerte stehen in
+    # extra_markets.
+    if sport == "basketball":
+        total = raw_preds.get("expected_total_points", 0.0)
+        mu_h = raw_preds.get("expected_home_points", 0.0)
+        mu_a = raw_preds.get("expected_away_points", 0.0)
+        col_total = total
+        col_home = mu_h
+        col_away = mu_a
+        # Lieferungs-Spalten leer für NBA — die NBA-Linien stecken in extra_markets
+        col_p_o05 = col_p_o15 = col_p_o25 = col_p_o35 = 0.0
+        col_p_u05 = col_p_u15 = col_p_u25 = col_p_u35 = 0.0
+    else:
+        col_total = raw_preds.get("expected_total_goals", 2.5)
+        col_home = raw_preds.get("expected_home_goals", 1.3)
+        col_away = raw_preds.get("expected_away_goals", 1.2)
+        col_p_o05 = raw_preds.get("prob_over_0_5", 0.95)
+        col_p_o15 = raw_preds.get("prob_over_1_5", 0.80)
+        col_p_o25 = raw_preds.get("prob_over_2_5", 0.55)
+        col_p_o35 = raw_preds.get("prob_over_3_5", 0.32)
+        col_p_u05 = raw_preds.get("prob_under_0_5", 0.05)
+        col_p_u15 = raw_preds.get("prob_under_1_5", 0.20)
+        col_p_u25 = raw_preds.get("prob_under_2_5", 0.45)
+        col_p_u35 = raw_preds.get("prob_under_3_5", 0.68)
+
     pred = Prediction(
         match_id=match.id,
-        expected_total_goals=raw_preds.get("expected_total_goals", 2.5),
-        expected_home_goals=raw_preds.get("expected_home_goals", 1.3),
-        expected_away_goals=raw_preds.get("expected_away_goals", 1.2),
-        prob_over_0_5=raw_preds.get("prob_over_0_5", 0.95),
-        prob_over_1_5=raw_preds.get("prob_over_1_5", 0.80),
-        prob_over_2_5=raw_preds.get("prob_over_2_5", 0.55),
-        prob_over_3_5=raw_preds.get("prob_over_3_5", 0.32),
-        prob_under_0_5=raw_preds.get("prob_under_0_5", 0.05),
-        prob_under_1_5=raw_preds.get("prob_under_1_5", 0.20),
-        prob_under_2_5=raw_preds.get("prob_under_2_5", 0.45),
-        prob_under_3_5=raw_preds.get("prob_under_3_5", 0.68),
+        expected_total_goals=col_total,
+        expected_home_goals=col_home,
+        expected_away_goals=col_away,
+        prob_over_0_5=col_p_o05,
+        prob_over_1_5=col_p_o15,
+        prob_over_2_5=col_p_o25,
+        prob_over_3_5=col_p_o35,
+        prob_under_0_5=col_p_u05,
+        prob_under_1_5=col_p_u15,
+        prob_under_2_5=col_p_u25,
+        prob_under_3_5=col_p_u35,
+        extra_markets=extra_markets,
         # Football segments
         expected_goals_h1=raw_preds.get("expected_goals_h1"),
         expected_goals_h2=raw_preds.get("expected_goals_h2"),
