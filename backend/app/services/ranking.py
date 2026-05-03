@@ -171,6 +171,25 @@ def _candidates_for(pred: Prediction, match: Match) -> List[Dict[str, Any]]:
                         out.append({"market": f"{q.upper()} Punkte", "line": float(line),
                                     "direction": direction, "prob": float(v)})
 
+    elif sport == "baseball":
+        extra = getattr(pred, "extra_markets", None) or {}
+        # Total Runs
+        for line in (6.5, 7.5, 8.0, 8.5, 9.0, 9.5, 10.5, 11.5):
+            lk = str(line).replace(".", "_")
+            for direction, prefix in (("over", "prob_over_"), ("under", "prob_under_")):
+                v = extra.get(f"{prefix}{lk}")
+                if isinstance(v, (int, float)):
+                    out.append({"market": "Total Runs", "line": float(line),
+                                "direction": direction, "prob": float(v)})
+        # F5 — beliebter MLB-Wettmarkt
+        for line in (3.5, 4.5, 5.5):
+            lk = str(line).replace(".", "_")
+            for direction, prefix in (("over", "prob_over_"), ("under", "prob_under_")):
+                v = extra.get(f"{prefix}{lk}_f5")
+                if isinstance(v, (int, float)):
+                    out.append({"market": "F5 Runs", "line": float(line),
+                                "direction": direction, "prob": float(v)})
+
     # Untere Schwelle: kein Coin-Flip-Pick.
     # Obere Schwelle: faire Quote muss mind. _MIN_FAIR_ODDS sein →
     # triviale Lock-Picks (Over 0.5 mit ~95 %) fliegen raus.

@@ -54,6 +54,7 @@ def get_model_status(db: Session = Depends(get_db)):
         "football_SSL": ("football", "FootballEnsemble"),
         "hockey_NHL": ("hockey", "NHLEnsemble"),
         "basketball_NBA": ("basketball", "NBAEnsemble"),
+        "baseball_MLB": ("baseball", "MLBEnsemble"),
     }
     for key, (sport, model_name) in model_files.items():
         path = os.path.join(settings.MODEL_DIR, f"{key}.pkl")

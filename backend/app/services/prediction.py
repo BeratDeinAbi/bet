@@ -43,6 +43,11 @@ def _get_nba_model():
     return _load_model("basketball_NBA", path)
 
 
+def _get_mlb_model():
+    path = os.path.join(settings.MODEL_DIR, "baseball_MLB.pkl")
+    return _load_model("baseball_MLB", path)
+
+
 def _fallback_football_predict(home_team: str, away_team: str) -> Dict:
     """Rule-based fallback when no model is trained."""
     from scipy.stats import poisson
@@ -57,6 +62,33 @@ def _fallback_football_predict(home_team: str, away_team: str) -> Dict:
         "expected_home_goals": lam_h, "expected_away_goals": lam_a,
         "expected_total_goals": total, "model_agreement_score": 0.5,
         **ou, **seg,
+    }
+
+
+def _fallback_mlb_predict(home_team: str, away_team: str) -> Dict:
+    """Fallback wenn kein MLB-Modell trainiert ist."""
+    from ml.models.mlb_model import (
+        MLB_PRIOR, MLBF5Model, TOTAL_LINES, poisson_prob_over,
+    )
+    avg = MLB_PRIOR["avg_runs"]
+    home_adv = MLB_PRIOR["home_adv"]
+    lam_h = (avg / 2.0) * home_adv
+    lam_a = avg / 2.0
+    total = lam_h + lam_a
+    ou = {}
+    for line in TOTAL_LINES:
+        key = str(line).replace(".", "_")
+        p = poisson_prob_over(total, line)
+        ou[f"prob_over_{key}"] = round(min(max(p, 0.001), 0.999), 4)
+        ou[f"prob_under_{key}"] = round(1.0 - ou[f"prob_over_{key}"], 4)
+    f5 = MLBF5Model().predict(total)
+    return {
+        "expected_home_runs": round(lam_h, 3),
+        "expected_away_runs": round(lam_a, 3),
+        "expected_total_runs": round(total, 3),
+        "model_agreement_score": 0.5,
+        **ou,
+        **f5,
     }
 
 
@@ -136,6 +168,18 @@ def _generate_explanation(sport: str, preds: Dict, home_team: str, away_team: st
             f"NBA: {home_team} {mu_h:.0f} – {mu_a:.0f} {away_team}. "
             f"Erwartete Gesamtpunkte: {total:.1f}. {tempo}."
         )
+    if sport == "baseball":
+        total = preds.get("expected_total_runs", 0)
+        lam_h = preds.get("expected_home_runs", 0)
+        lam_a = preds.get("expected_away_runs", 0)
+        f5 = preds.get("expected_runs_f5", 0)
+        tempo = "Hochfrequentes Offensiv-Game" if total > 10 else (
+            "Pitcher-Duell" if total < 7.5 else "Standard-Run-Niveau"
+        )
+        return (
+            f"MLB: {home_team} {lam_h:.1f} – {lam_a:.1f} {away_team}. "
+            f"Erwartete Total Runs: {total:.1f} (F5: {f5:.1f}). {tempo}."
+        )
     # hockey
     total = preds.get("expected_total_goals", 0)
     p1 = preds.get("expected_goals_p1", 0)
@@ -177,6 +221,12 @@ def predict_match(db: Session, match: Match) -> Optional[Prediction]:
             raw_preds = model.predict(home, away)
         else:
             raw_preds = _fallback_nba_predict(home, away)
+    elif sport == "baseball":
+        model = _get_mlb_model()
+        if model and model.fitted:
+            raw_preds = model.predict(home, away)
+        else:
+            raw_preds = _fallback_mlb_predict(home, away)
     else:
         return None
 
@@ -189,9 +239,9 @@ def predict_match(db: Session, match: Match) -> Optional[Prediction]:
 
     explanation = _generate_explanation(sport, raw_preds, home, away)
 
-    # NBA hat ein eigenes Scoring-Niveau (200+ Punkte) — die kleinen
-    # 0.5/1.5/2.5/3.5-Spalten passen nicht.  Wir packen alle NBA-
-    # spezifischen Märkte (200.5–240.5 Total + Q1–Q4) in extra_markets.
+    # NBA + MLB haben eigene Scoring-Niveaus (200+ Punkte / 6+ Runs) —
+    # die kleinen 0.5/1.5/2.5/3.5-Spalten passen nicht.  Wir packen alle
+    # sport-spezifischen Märkte in extra_markets als JSON.
     extra_markets = None
     if sport == "basketball":
         extra_markets = {
@@ -201,18 +251,29 @@ def predict_match(db: Session, match: Match) -> Optional[Prediction]:
             or k.startswith("expected_home_points") or k.startswith("expected_away_points")
             or k in ("total_lines_used", "quarter_lines_used")
         }
+    elif sport == "baseball":
+        extra_markets = {
+            k: v for k, v in raw_preds.items()
+            if k.startswith("prob_over_") or k.startswith("prob_under_")
+            or k.startswith("expected_runs_") or k.startswith("expected_total_")
+            or k.startswith("expected_home_runs") or k.startswith("expected_away_runs")
+            or k.startswith("pitcher_factor_")
+            or k in ("total_lines_used", "f5_lines_used")
+        }
 
-    # Schema-Spalten: für Basketball mit Sentinel-Werten füllen, damit
-    # NOT-NULL-Felder gesetzt sind; die echten Punktwerte stehen in
+    # Schema-Spalten: für Basketball/Baseball mit Sentinel-Werten füllen,
+    # damit NOT-NULL-Felder gesetzt sind; die echten Werte stehen in
     # extra_markets.
     if sport == "basketball":
-        total = raw_preds.get("expected_total_points", 0.0)
-        mu_h = raw_preds.get("expected_home_points", 0.0)
-        mu_a = raw_preds.get("expected_away_points", 0.0)
-        col_total = total
-        col_home = mu_h
-        col_away = mu_a
-        # Lieferungs-Spalten leer für NBA — die NBA-Linien stecken in extra_markets
+        col_total = raw_preds.get("expected_total_points", 0.0)
+        col_home = raw_preds.get("expected_home_points", 0.0)
+        col_away = raw_preds.get("expected_away_points", 0.0)
+        col_p_o05 = col_p_o15 = col_p_o25 = col_p_o35 = 0.0
+        col_p_u05 = col_p_u15 = col_p_u25 = col_p_u35 = 0.0
+    elif sport == "baseball":
+        col_total = raw_preds.get("expected_total_runs", 0.0)
+        col_home = raw_preds.get("expected_home_runs", 0.0)
+        col_away = raw_preds.get("expected_away_runs", 0.0)
         col_p_o05 = col_p_o15 = col_p_o25 = col_p_o35 = 0.0
         col_p_u05 = col_p_u15 = col_p_u25 = col_p_u35 = 0.0
     else:

@@ -263,3 +263,83 @@ class MockBasketballProvider(BaseHockeyProvider):
                 segments=quarters,
             ))
         return historical
+
+
+class MockBaseballProvider(BaseHockeyProvider):
+    """MLB-Mock — Demo-/Fallback-Daten mit realistischen Run-Niveaus."""
+
+    name = "mock_baseball"
+
+    PAIRS = [
+        ("New York Yankees", "Boston Red Sox"),
+        ("Los Angeles Dodgers", "San Francisco Giants"),
+        ("Houston Astros", "Texas Rangers"),
+        ("Atlanta Braves", "New York Mets"),
+    ]
+
+    def get_today_matches(self) -> List[ProviderMatch]:
+        data = _load_json("mlb_today.json")
+        if data:
+            return [ProviderMatch(**m) for m in data.get("matches", [])]
+        return self._generate_today_matches()
+
+    def _generate_today_matches(self) -> List[ProviderMatch]:
+        times = _today_kickoffs(4, "baseball")
+        return [
+            ProviderMatch(
+                external_id=f"mock_mlb_{i}",
+                sport="baseball",
+                competition_code="MLB",
+                competition_name="MLB",
+                home_team_name=h,
+                away_team_name=a,
+                kickoff_time=times[i % len(times)],
+                status="SCHEDULED",
+            )
+            for i, (h, a) in enumerate(self.PAIRS)
+        ]
+
+    def get_historical_matches(self, seasons: List[str]) -> List[ProviderHistoricalMatch]:
+        data = _load_json("mlb_historical.json")
+        if data:
+            return [ProviderHistoricalMatch(**m) for m in data.get("matches", [])]
+        return self._generate_historical()
+
+    def _generate_historical(self) -> List[ProviderHistoricalMatch]:
+        import random
+        rng = random.Random(42)
+        historical: List[ProviderHistoricalMatch] = []
+        base_date = datetime(2024, 6, 1, 23, 5, 0, tzinfo=timezone.utc)
+        for i in range(80):
+            home, away = self.PAIRS[i % len(self.PAIRS)]
+            # Poisson-typisches Run-Niveau (~4.5 pro Team)
+            home_score = max(0, int(rng.gauss(4.7, 2.6)))
+            away_score = max(0, int(rng.gauss(4.3, 2.6)))
+            total = home_score + away_score
+            f5 = int(round(total * 0.55))
+            late = total - f5
+            f5_h = min(home_score, max(0, int(round(f5 * (home_score / total)) if total else 0)))
+            f5_a = max(0, f5 - f5_h)
+            late_h = max(0, home_score - f5_h)
+            late_a = max(0, away_score - f5_a)
+            segments = [
+                {"segment_code": "F5", "home_score": f5_h, "away_score": f5_a,
+                 "total_goals": f5_h + f5_a},
+                {"segment_code": "L4", "home_score": late_h, "away_score": late_a,
+                 "total_goals": late_h + late_a},
+            ]
+            kickoff = (base_date + timedelta(days=i)).isoformat()
+            historical.append(ProviderHistoricalMatch(
+                external_id=f"mock_mlb_hist_{i}",
+                sport="baseball",
+                competition_code="MLB",
+                competition_name="MLB",
+                home_team_name=home,
+                away_team_name=away,
+                kickoff_time=kickoff,
+                status="FINISHED",
+                home_score=home_score,
+                away_score=away_score,
+                segments=segments,
+            ))
+        return historical

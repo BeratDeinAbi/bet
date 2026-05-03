@@ -16,6 +16,7 @@ from app.providers.provider_factory import (
     get_superlig_provider,
     get_hockey_provider,
     get_basketball_provider,
+    get_baseball_provider,
 )
 from app.core.config import settings
 
@@ -32,6 +33,7 @@ COMPETITIONS = {
     "SSL":  {"name": "Süper Lig",     "sport": "football", "country": "Turkey"},
     "NHL":  {"name": "NHL",           "sport": "hockey",   "country": "North America"},
     "NBA":  {"name": "NBA",           "sport": "basketball","country": "USA"},
+    "MLB":  {"name": "MLB",           "sport": "baseball",  "country": "USA"},
 }
 
 
@@ -207,6 +209,34 @@ def ingest_today_matches(db: Session) -> int:
         db.flush()
         logger.info("NBA Mock-Fallback aktiv für heute")
 
+    # Baseball (MLB)
+    bbp = get_baseball_provider()
+    t0 = time.time()
+    mlb_count = 0
+    try:
+        mlb_matches = bbp.get_today_matches()
+        for pm in mlb_matches:
+            comp = _ensure_competition(db, "MLB")
+            _upsert_match(db, pm, comp.id)
+            total += 1
+            mlb_count += 1
+        db.flush()
+        _log_provider(db, bbp.name, "today_matches", True, len(mlb_matches),
+                      duration_ms=int((time.time() - t0) * 1000))
+        logger.info(f"MLB: {len(mlb_matches)} games from {bbp.name}")
+    except Exception as e:
+        _log_provider(db, bbp.name, "today_matches", False, 0, str(e))
+        logger.error(f"MLB ingestion error: {e}")
+
+    if mlb_count == 0 and settings.USE_MOCK_FALLBACK:
+        from app.providers.mock_provider import MockBaseballProvider
+        for pm in MockBaseballProvider().get_today_matches():
+            comp = _ensure_competition(db, "MLB")
+            _upsert_match(db, pm, comp.id)
+            total += 1
+        db.flush()
+        logger.info("MLB Mock-Fallback aktiv für heute")
+
     db.commit()
     logger.info(f"Ingested {total} matches for today")
     return total
@@ -286,6 +316,30 @@ def ingest_historical_matches(db: Session, seasons: List[str] = None) -> int:
             total += 1
     except Exception as e:
         logger.error(f"Historical NBA error: {e}")
+
+    # MLB historical (MLB-Stats-API)
+    bbp = get_baseball_provider()
+    try:
+        mlb_hist = bbp.get_historical_matches(seasons)
+        if not mlb_hist and settings.USE_MOCK_FALLBACK:
+            from app.providers.mock_provider import MockBaseballProvider
+            mlb_hist = MockBaseballProvider().get_historical_matches(seasons)
+            logger.info(f"Historical MLB mock fallback: {len(mlb_hist)} Spiele")
+        for pm in mlb_hist:
+            comp = _ensure_competition(db, "MLB")
+            match = _upsert_match(db, pm, comp.id)
+            db.flush()
+            if hasattr(pm, "segments") and pm.segments:
+                for seg in pm.segments:
+                    existing = db.query(MatchSegment).filter(
+                        MatchSegment.match_id == match.id,
+                        MatchSegment.segment_code == seg["segment_code"]
+                    ).first()
+                    if not existing:
+                        db.add(MatchSegment(match_id=match.id, **seg))
+            total += 1
+    except Exception as e:
+        logger.error(f"Historical MLB error: {e}")
 
     db.commit()
     logger.info(f"Ingested {total} historical matches")
