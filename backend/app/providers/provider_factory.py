@@ -65,6 +65,25 @@ def get_superlig_provider() -> BaseFootballProvider:
     return MockFootballProvider()
 
 
+def get_basketball_provider() -> BaseHockeyProvider:
+    """NBA via ESPN (kostenlos, kein Key, inkl. Quarter-Linescores)."""
+    try:
+        from app.providers.nba_provider import NBAProvider
+        nba = NBAProvider()
+        if nba.is_available():
+            logger.info("Basketball provider: ESPN NBA (free, no key)")
+            return nba
+    except Exception as e:
+        logger.warning(f"NBA provider init failed: {e}")
+
+    if settings.USE_MOCK_FALLBACK:
+        from app.providers.mock_provider import MockBasketballProvider
+        logger.info("Basketball provider: Mock (fallback)")
+        return MockBasketballProvider()
+
+    raise RuntimeError("No basketball provider available.")
+
+
 def get_hockey_provider() -> BaseHockeyProvider:
     # 1. NHL public API (no key required)
     try:

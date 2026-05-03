@@ -36,9 +36,13 @@ class Settings(BaseSettings):
     # OpenLigaDB (free, no key, Bundesliga & 2. Bundesliga)
     OPENLIGADB_BASE_URL: str = "https://api.openligadb.de"
 
+    # NBA via ESPN public API
+    NBA_API_BASE_URL: str = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba"
+
     # Active leagues
     ACTIVE_FOOTBALL_LEAGUES: List[str] = ["BL1", "BL2", "PL", "PD", "SSL"]
     ACTIVE_HOCKEY_LEAGUES: List[str] = ["NHL"]
+    ACTIVE_BASKETBALL_LEAGUES: List[str] = ["NBA"]
 
     # ML Config
     MODEL_DIR: str = "./data/models"

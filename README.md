@@ -4,8 +4,8 @@ Lokale Web-App für Fußball- und NHL-Torprognosen. Täglich aktualisierte Vorhe
 
 ## Features
 
-- **Heutige Spiele**: Bundesliga, Premier League, La Liga, Süper Lig, NHL
-- **Torprognosen**: Gesamt, 1. HZ / 2. HZ (Fußball), Periode 1–3 (NHL)
+- **Heutige Spiele**: Bundesliga, 2. Bundesliga, Premier League, La Liga, Süper Lig, NHL, NBA
+- **Torprognosen**: Gesamt, 1. HZ / 2. HZ (Fußball), Periode 1–3 (NHL), Q1–Q4 (NBA)
 - **Over/Under**: Wahrscheinlichkeiten für alle gängigen Linien
 - **Top 3 Picks**: Täglich die 3 besten Torprognosen mit Ranking-Score
 - **Confidence Score**: Modellkonfidenz + Stabilitätsmetrik
@@ -120,6 +120,8 @@ scripts/           Setup + Seed
 **Fußball**: Poisson MLE + Dixon-Coles (ρ=-0.13) + Elo Adjustment + HalfTime-Modell
 
 **NHL**: Poisson MLE + Elo + Period-Ratios (P1/P2/P3)
+
+**NBA**: Normal-Verteilung MLE (Punkte ~Gaussian) + Elo + Rolling-Form + Quarter-Modell (Q1–Q4)
 
 **Ensemble**: Gewichtete Kombination mit walk-forward Backtesting
 

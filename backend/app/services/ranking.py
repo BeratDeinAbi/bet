@@ -150,6 +150,27 @@ def _candidates_for(pred: Prediction, match: Match) -> List[Dict[str, Any]]:
         add("P3 Total", 0.5, "over", "prob_over_0_5_p3")
         add("P3 Total", 1.5, "over", "prob_over_1_5_p3")
 
+    elif sport == "basketball":
+        # NBA-Märkte stehen in extra_markets (JSON), nicht in Spalten.
+        extra = getattr(pred, "extra_markets", None) or {}
+        # Total-Punkte
+        for line in (200.5, 210.5, 215.5, 220.5, 225.5, 230.5, 235.5, 240.5):
+            lk = str(line).replace(".", "_")
+            for direction, prefix in (("over", "prob_over_"), ("under", "prob_under_")):
+                v = extra.get(f"{prefix}{lk}")
+                if isinstance(v, (int, float)):
+                    out.append({"market": "Total Punkte", "line": float(line),
+                                "direction": direction, "prob": float(v)})
+        # Quarter-Linien (Q1–Q4 × 50.5/55.5/60.5)
+        for q in ("q1", "q2", "q3", "q4"):
+            for line in (50.5, 55.5, 60.5):
+                lk = str(line).replace(".", "_")
+                for direction, prefix in (("over", "prob_over_"), ("under", "prob_under_")):
+                    v = extra.get(f"{prefix}{lk}_{q}")
+                    if isinstance(v, (int, float)):
+                        out.append({"market": f"{q.upper()} Punkte", "line": float(line),
+                                    "direction": direction, "prob": float(v)})
+
     # Untere Schwelle: kein Coin-Flip-Pick.
     # Obere Schwelle: faire Quote muss mind. _MIN_FAIR_ODDS sein →
     # triviale Lock-Picks (Over 0.5 mit ~95 %) fliegen raus.

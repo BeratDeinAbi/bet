@@ -1,5 +1,5 @@
-export type Sport = 'football' | 'hockey'
-export type LeagueCode = 'BL1' | 'BL2' | 'PL' | 'PD' | 'SSL' | 'NHL'
+export type Sport = 'football' | 'hockey' | 'basketball'
+export type LeagueCode = 'BL1' | 'BL2' | 'PL' | 'PD' | 'SSL' | 'NHL' | 'NBA'
 export type ConfidenceLabel = 'HIGH' | 'MEDIUM' | 'LOW'
 
 export interface Competition {
@@ -75,6 +75,9 @@ export interface Prediction {
   prob_over_1_5_p2?: number
   prob_over_0_5_p3?: number
   prob_over_1_5_p3?: number
+
+  // Sport-spezifische Erweiterungen (NBA: 200.5–240.5 Total + Q1–Q4)
+  extra_markets?: Record<string, number | number[]> | null
 
   confidence_score: number
   confidence_label: ConfidenceLabel

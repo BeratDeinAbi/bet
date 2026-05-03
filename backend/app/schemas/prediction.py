@@ -39,6 +39,10 @@ class PredictionSchema(BaseModel):
     prob_over_0_5_p3: Optional[float] = None
     prob_over_1_5_p3: Optional[float] = None
 
+    # NBA + andere High-Score-Sportarten:
+    # alle prob_over_NNN_5 / prob_under_NNN_5 + expected_points_qX usw.
+    extra_markets: Optional[dict] = None
+
     confidence_score: float
     confidence_label: str
     model_agreement_score: float

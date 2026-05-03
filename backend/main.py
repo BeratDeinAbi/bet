@@ -51,10 +51,15 @@ async def on_startup():
     from app.services.ingestion import COMPETITIONS, _ensure_competition
     db = SessionLocal()
     try:
-        for code in list(settings.ACTIVE_FOOTBALL_LEAGUES) + list(settings.ACTIVE_HOCKEY_LEAGUES):
+        all_leagues = (
+            list(settings.ACTIVE_FOOTBALL_LEAGUES)
+            + list(settings.ACTIVE_HOCKEY_LEAGUES)
+            + list(settings.ACTIVE_BASKETBALL_LEAGUES)
+        )
+        for code in all_leagues:
             _ensure_competition(db, code)
         db.commit()
-        logger.info(f"Competitions initialized: {settings.ACTIVE_FOOTBALL_LEAGUES + settings.ACTIVE_HOCKEY_LEAGUES}")
+        logger.info(f"Competitions initialized: {all_leagues}")
     except Exception as e:
         logger.warning(f"Competition init warning: {e}")
     finally:
