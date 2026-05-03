@@ -28,11 +28,13 @@ def train_models(background_tasks: BackgroundTasks, db: Session = Depends(get_db
     def _run(db):
         ingest_historical_matches(db)
         from ml.training.train_models import (
-            train_football_models, train_hockey_models, train_basketball_models,
+            train_football_models, train_hockey_models,
+            train_basketball_models, train_baseball_models,
         )
         train_football_models()
         train_hockey_models()
         train_basketball_models()
+        train_baseball_models()
     background_tasks.add_task(_run, db)
     return {"status": "training started"}
 
@@ -53,11 +55,13 @@ def seed_real_data(db: Session = Depends(get_db)):
     train_warning = None
     try:
         from ml.training.train_models import (
-            train_football_models, train_hockey_models, train_basketball_models,
+            train_football_models, train_hockey_models,
+            train_basketball_models, train_baseball_models,
         )
         train_football_models()
         train_hockey_models()
         train_basketball_models()
+        train_baseball_models()
     except Exception as e:
         train_warning = str(e)
 

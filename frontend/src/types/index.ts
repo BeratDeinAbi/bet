@@ -1,5 +1,5 @@
-export type Sport = 'football' | 'hockey' | 'basketball'
-export type LeagueCode = 'BL1' | 'BL2' | 'PL' | 'PD' | 'SSL' | 'NHL' | 'NBA'
+export type Sport = 'football' | 'hockey' | 'basketball' | 'baseball'
+export type LeagueCode = 'BL1' | 'BL2' | 'PL' | 'PD' | 'SSL' | 'NHL' | 'NBA' | 'MLB'
 export type ConfidenceLabel = 'HIGH' | 'MEDIUM' | 'LOW'
 
 export interface Competition {

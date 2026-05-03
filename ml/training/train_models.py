@@ -16,6 +16,7 @@ from app.db.models import Match, MatchSegment, Competition
 from ml.models.football_model import FootballEnsemble
 from ml.models.hockey_model import NHLEnsemble
 from ml.models.nba_model import NBAEnsemble
+from ml.models.mlb_model import MLBEnsemble
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -144,12 +145,31 @@ def train_basketball_models() -> str:
         db.close()
 
 
+def train_baseball_models() -> str:
+    init_db()
+    db = SessionLocal()
+    try:
+        # _fetch_basketball_matches ist generisch (nur über die competition_code
+        # parametrisiert) — wir nutzen ihn für MLB direkt mit code="MLB".
+        matches = _fetch_basketball_matches(db, "MLB")
+        logger.info(f"Training MLB model with {len(matches)} matches")
+        ensemble = MLBEnsemble()
+        ensemble.fit(matches)
+        path = os.path.join(settings.MODEL_DIR, "baseball_MLB.pkl")
+        ensemble.save(path)
+        return path
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
     logger.info("Starting model training...")
     fb_paths = train_football_models()
     nhl_path = train_hockey_models()
     nba_path = train_basketball_models()
+    mlb_path = train_baseball_models()
     logger.info(f"Football models: {fb_paths}")
     logger.info(f"NHL model: {nhl_path}")
     logger.info(f"NBA model: {nba_path}")
+    logger.info(f"MLB model: {mlb_path}")
     logger.info("Training complete.")

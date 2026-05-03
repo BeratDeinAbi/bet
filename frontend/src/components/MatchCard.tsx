@@ -16,6 +16,7 @@ const SPORT_EMOJI: Record<string, string> = {
   football: '⚽',
   hockey: '🏒',
   basketball: '🏀',
+  baseball: '⚾',
 }
 
 const LEAGUE_COLORS: Record<string, string> = {
@@ -26,6 +27,7 @@ const LEAGUE_COLORS: Record<string, string> = {
   SSL: '#E30A17',
   NHL: '#003087',
   NBA: '#c8102e',
+  MLB: '#01696f',
 }
 
 // NBA-Linie aus extra_markets ziehen
@@ -55,6 +57,7 @@ function bestQuarterOvers(
 export default function MatchCard({ prediction: p }: Props) {
   const isFootball = p.sport === 'football'
   const isBasketball = p.sport === 'basketball'
+  const isBaseball = p.sport === 'baseball'
   const leagueColor = LEAGUE_COLORS[p.league] || '#444'
 
   return (
@@ -113,6 +116,21 @@ export default function MatchCard({ prediction: p }: Props) {
             <ProbBar label="Under 220.5" probability={getNbaProb(p, 'prob_under_220_5') ?? 0} color="#f87171" />
           </div>
         </div>
+      ) : isBaseball ? (
+        <div className="bg-surface-low rounded-lg p-3 mb-3">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs text-gray-400 font-medium">Total Runs erwartet</span>
+            <span className="font-display font-bold text-accent-green text-lg">
+              {p.expected_total_goals.toFixed(2)}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <ProbBar label="Over 7.5" probability={getNbaProb(p, 'prob_over_7_5') ?? 0} />
+            <ProbBar label="Over 8.5" probability={getNbaProb(p, 'prob_over_8_5') ?? 0} color="#8eff71" />
+            <ProbBar label="Over 9.5" probability={getNbaProb(p, 'prob_over_9_5') ?? 0} color="#fbbf24" />
+            <ProbBar label="Under 8.5" probability={getNbaProb(p, 'prob_under_8_5') ?? 0} color="#f87171" />
+          </div>
+        </div>
       ) : (
         <div className="bg-surface-low rounded-lg p-3 mb-3">
           <div className="flex justify-between items-center mb-2">
@@ -168,6 +186,24 @@ export default function MatchCard({ prediction: p }: Props) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {isBaseball && (
+        <div className="grid grid-cols-1 gap-2 mb-3">
+          <div className="bg-surface-low rounded-lg p-2.5">
+            <div className="flex justify-between items-center mb-1.5">
+              <p className="text-gray-500 text-xs">F5 (erste 5 Innings)</p>
+              <p className="font-display font-bold text-white text-sm">
+                {(getNbaProb(p, 'expected_runs_f5') ?? 0).toFixed(2)}
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              <ProbBar label="O 3.5" probability={getNbaProb(p, 'prob_over_3_5_f5') ?? 0} color="#60a5fa" />
+              <ProbBar label="O 4.5" probability={getNbaProb(p, 'prob_over_4_5_f5') ?? 0} color="#a78bfa" />
+              <ProbBar label="O 5.5" probability={getNbaProb(p, 'prob_over_5_5_f5') ?? 0} color="#f59e0b" />
+            </div>
+          </div>
         </div>
       )}
 

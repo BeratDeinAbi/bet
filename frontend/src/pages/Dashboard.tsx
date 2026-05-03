@@ -10,6 +10,7 @@ const SPORTS = [
   { value: 'football', label: '⚽ Fußball' },
   { value: 'hockey', label: '🏒 Eishockey' },
   { value: 'basketball', label: '🏀 Basketball' },
+  { value: 'baseball', label: '⚾ Baseball' },
 ]
 
 const LEAGUES = [
@@ -21,6 +22,7 @@ const LEAGUES = [
   { value: 'SSL', label: 'Süper Lig' },
   { value: 'NHL', label: 'NHL' },
   { value: 'NBA', label: 'NBA' },
+  { value: 'MLB', label: 'MLB' },
 ]
 
 export default function Dashboard() {
@@ -112,7 +114,8 @@ export default function Dashboard() {
             .filter(l => !sport || l.value === '' ||
               (sport === 'football' && ['BL1','BL2','PL','PD','SSL'].includes(l.value)) ||
               (sport === 'hockey' && l.value === 'NHL') ||
-              (sport === 'basketball' && l.value === 'NBA'))
+              (sport === 'basketball' && l.value === 'NBA') ||
+              (sport === 'baseball' && l.value === 'MLB'))
             .map(l => (
               <button
                 key={l.value}
