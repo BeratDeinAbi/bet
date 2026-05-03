@@ -5,34 +5,30 @@ import { api } from '../api/client'
 import MatchCard from '../components/MatchCard'
 import clsx from 'clsx'
 
-const SPORTS = [
-  { value: '', label: 'Alle' },
-  { value: 'football', label: '⚽ Fußball' },
-  { value: 'hockey', label: '🏒 Eishockey' },
-  { value: 'basketball', label: '🏀 Basketball' },
-  { value: 'baseball', label: '⚾ Baseball' },
-]
-
-const LEAGUES = [
-  { value: '', label: 'Alle Ligen' },
-  { value: 'BL1', label: 'Bundesliga' },
-  { value: 'BL2', label: '2. Bundesliga' },
-  { value: 'PL', label: 'Premier League' },
-  { value: 'PD', label: 'La Liga' },
-  { value: 'SSL', label: 'Süper Lig' },
-  { value: 'NHL', label: 'NHL' },
-  { value: 'NBA', label: 'NBA' },
-  { value: 'MLB', label: 'MLB' },
+const CATEGORIES = [
+  { league: '',    sport: '',           label: 'Alle' },
+  { league: 'BL1', sport: 'football',  label: '⚽ Bundesliga' },
+  { league: 'BL2', sport: 'football',  label: '⚽ 2. Bundesliga' },
+  { league: 'PL',  sport: 'football',  label: '⚽ Premier League' },
+  { league: 'PD',  sport: 'football',  label: '⚽ La Liga' },
+  { league: 'SSL', sport: 'football',  label: '⚽ Süper Lig' },
+  { league: 'NHL', sport: 'hockey',    label: '🏒 NHL' },
+  { league: 'NBA', sport: 'basketball',label: '🏀 NBA' },
+  { league: 'MLB', sport: 'baseball',  label: '⚾ MLB' },
 ]
 
 export default function Dashboard() {
-  const [sport, setSport] = useState('')
-  const [league, setLeague] = useState('')
+  const [selected, setSelected] = useState('')
   const queryClient = useQueryClient()
 
+  const active = CATEGORIES.find(c => c.league === selected) ?? CATEGORIES[0]
+
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['predictions', 'today', sport, league],
-    queryFn: () => api.predictions.today({ sport: sport || undefined, league: league || undefined }),
+    queryKey: ['predictions', 'today', selected],
+    queryFn: () => api.predictions.today({
+      sport: active.sport || undefined,
+      league: active.league || undefined,
+    }),
   })
 
   const seedMutation = useMutation({
@@ -88,49 +84,22 @@ export default function Dashboard() {
       )}
 
       {/* Filters */}
-      <div className="mb-6 space-y-2">
-        {/* Row 1: Sport */}
-        <div className="flex items-center gap-1 flex-wrap">
-          <Filter className="w-4 h-4 text-gray-500 mr-1" />
-          {SPORTS.map(s => (
-            <button
-              key={s.value}
-              onClick={() => { setSport(s.value); setLeague('') }}
-              className={clsx(
-                'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                sport === s.value
-                  ? 'bg-surface-high text-white'
-                  : 'text-gray-500 hover:text-gray-300 hover:bg-surface-mid'
-              )}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Row 2: Liga */}
-        <div className="flex items-center gap-1 flex-wrap pl-6">
-          {LEAGUES
-            .filter(l => !sport || l.value === '' ||
-              (sport === 'football' && ['BL1','BL2','PL','PD','SSL'].includes(l.value)) ||
-              (sport === 'hockey' && l.value === 'NHL') ||
-              (sport === 'basketball' && l.value === 'NBA') ||
-              (sport === 'baseball' && l.value === 'MLB'))
-            .map(l => (
-              <button
-                key={l.value}
-                onClick={() => setLeague(l.value)}
-                className={clsx(
-                  'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                  league === l.value
-                    ? 'bg-surface-high text-white'
-                    : 'text-gray-500 hover:text-gray-300 hover:bg-surface-mid'
-                )}
-              >
-                {l.label}
-              </button>
-            ))}
-        </div>
+      <div className="flex items-center gap-1 flex-wrap mb-6">
+        <Filter className="w-4 h-4 text-gray-500 mr-1 shrink-0" />
+        {CATEGORIES.map(c => (
+          <button
+            key={c.league}
+            onClick={() => setSelected(c.league)}
+            className={clsx(
+              'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+              selected === c.league
+                ? 'bg-surface-high text-white'
+                : 'text-gray-500 hover:text-gray-300 hover:bg-surface-mid'
+            )}
+          >
+            {c.label}
+          </button>
+        ))}
       </div>
 
       {/* States */}
