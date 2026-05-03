@@ -65,6 +65,9 @@ def _upsert_match(db: Session, pm: ProviderMatch, competition_id: int) -> Match:
         match.status = pm.status
         match.home_score = pm.home_score
         match.away_score = pm.away_score
+        # Mock-Matches immer mit aktueller Kickoff-Zeit überschreiben
+        if pm.external_id.startswith("mock_"):
+            match.kickoff_time = _parse_dt(pm.kickoff_time)
     return match
 
 
@@ -120,12 +123,15 @@ def ingest_today_matches(db: Session) -> int:
         gp = get_german_football_provider()
         t0 = time.time()
         fetched_german: Set[str] = set()
+        fetched_german_scheduled: Set[str] = set()
         try:
             matches = gp.get_today_matches(german)
             for pm in matches:
                 comp = _ensure_competition(db, pm.competition_code)
                 _upsert_match(db, pm, comp.id)
                 fetched_german.add(pm.competition_code)
+                if pm.status == "SCHEDULED":
+                    fetched_german_scheduled.add(pm.competition_code)
                 total += 1
             db.flush()
             _log_provider(db, gp.name, "today_matches", True, len(matches),
@@ -135,8 +141,8 @@ def ingest_today_matches(db: Session) -> int:
             _log_provider(db, gp.name, "today_matches", False, 0, str(e))
             logger.error(f"German football ingestion error: {e}")
 
-        # Ligen ohne Ergebnis → Mock-Fallback damit BL1/BL2 immer sichtbar sind
-        missing = [c for c in german if c not in fetched_german]
+        # Mock-Fallback für Ligen ohne anstehende (SCHEDULED) Spiele
+        missing = [c for c in german if c not in fetched_german_scheduled]
         total = _mock_fallback_leagues(db, missing, total)
 
     # 2. ESPN/football-data für alle übrigen Ligen
@@ -144,12 +150,15 @@ def ingest_today_matches(db: Session) -> int:
         fp = get_football_provider()
         t0 = time.time()
         fetched_other: Set[str] = set()
+        fetched_other_scheduled: Set[str] = set()
         try:
             matches = fp.get_today_matches(other)
             for pm in matches:
                 comp = _ensure_competition(db, pm.competition_code)
                 _upsert_match(db, pm, comp.id)
                 fetched_other.add(pm.competition_code)
+                if pm.status == "SCHEDULED":
+                    fetched_other_scheduled.add(pm.competition_code)
                 total += 1
             db.flush()
             _log_provider(db, fp.name, "today_matches", True, len(matches),
@@ -159,8 +168,8 @@ def ingest_today_matches(db: Session) -> int:
             _log_provider(db, fp.name, "today_matches", False, 0, str(e))
             logger.error(f"Football ingestion error: {e}")
 
-        # Fallback für Ligen ohne Live-Daten
-        missing_other = [c for c in other if c not in fetched_other]
+        # Fallback für Ligen ohne anstehende (SCHEDULED) Spiele
+        missing_other = [c for c in other if c not in fetched_other_scheduled]
         total = _mock_fallback_leagues(db, missing_other, total)
 
     # Hockey (NHL)
@@ -181,31 +190,32 @@ def ingest_today_matches(db: Session) -> int:
     # Basketball (NBA)
     bp = get_basketball_provider()
     t0 = time.time()
-    nba_count = 0
+    nba_scheduled_count = 0
     try:
         nba_matches = bp.get_today_matches()
         for pm in nba_matches:
             comp = _ensure_competition(db, "NBA")
             _upsert_match(db, pm, comp.id)
             total += 1
-            nba_count += 1
+            if pm.status == "SCHEDULED":
+                nba_scheduled_count += 1
         db.flush()
         _log_provider(db, bp.name, "today_matches", True, len(nba_matches),
                       duration_ms=int((time.time() - t0) * 1000))
-        logger.info(f"NBA: {len(nba_matches)} matches from {bp.name}")
+        logger.info(f"NBA: {len(nba_matches)} matches from {bp.name} ({nba_scheduled_count} scheduled)")
     except Exception as e:
         _log_provider(db, bp.name, "today_matches", False, 0, str(e))
         logger.error(f"NBA ingestion error: {e}")
 
-    # Mock-Fallback wenn der NBA-Provider nichts liefert (off-day, kein Netz…)
-    if nba_count == 0 and settings.USE_MOCK_FALLBACK:
+    # Mock-Fallback wenn keine anstehenden NBA-Spiele (off-day, Spiele bereits beendet…)
+    if nba_scheduled_count == 0 and settings.USE_MOCK_FALLBACK:
         from app.providers.mock_provider import MockBasketballProvider
         for pm in MockBasketballProvider().get_today_matches():
             comp = _ensure_competition(db, "NBA")
             _upsert_match(db, pm, comp.id)
             total += 1
         db.flush()
-        logger.info("NBA Mock-Fallback aktiv für heute")
+        logger.info("NBA Mock-Fallback aktiv — keine anstehenden Spiele heute")
 
     db.commit()
     logger.info(f"Ingested {total} matches for today")

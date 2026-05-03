@@ -33,8 +33,9 @@ class MockFootballProvider(BaseFootballProvider):
 
     def get_today_matches(self, league_codes: List[str]) -> List[ProviderMatch]:
         data = _load_json("football_today.json")
-        if data:
-            return [ProviderMatch(**m) for m in data.get("matches", []) if m["competition_code"] in league_codes]
+        matches_data = data.get("matches", []) if data else []
+        if matches_data:
+            return [ProviderMatch(**m) for m in matches_data if m["competition_code"] in league_codes]
         return self._generate_today_matches(league_codes)
 
     def _generate_today_matches(self, league_codes: List[str]) -> List[ProviderMatch]:
@@ -116,8 +117,9 @@ class MockHockeyProvider(BaseHockeyProvider):
 
     def get_today_matches(self) -> List[ProviderMatch]:
         data = _load_json("nhl_today.json")
-        if data:
-            return [ProviderMatch(**m) for m in data.get("matches", [])]
+        matches_data = data.get("matches", []) if data else []
+        if matches_data:
+            return [ProviderMatch(**m) for m in matches_data]
         return self._generate_today_matches()
 
     def _generate_today_matches(self) -> List[ProviderMatch]:
@@ -193,8 +195,9 @@ class MockBasketballProvider(BaseHockeyProvider):
 
     def get_today_matches(self) -> List[ProviderMatch]:
         data = _load_json("nba_today.json")
-        if data:
-            return [ProviderMatch(**m) for m in data.get("matches", [])]
+        matches_data = data.get("matches", []) if data else []
+        if matches_data:
+            return [ProviderMatch(**m) for m in matches_data]
         return self._generate_today_matches()
 
     def _generate_today_matches(self) -> List[ProviderMatch]:

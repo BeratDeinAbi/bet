@@ -86,9 +86,10 @@ export default function Dashboard() {
       )}
 
       {/* Filters */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <Filter className="w-4 h-4 text-gray-500" />
-        <div className="flex gap-1">
+      <div className="mb-6 space-y-2">
+        {/* Row 1: Sport */}
+        <div className="flex items-center gap-1 flex-wrap">
+          <Filter className="w-4 h-4 text-gray-500 mr-1" />
           {SPORTS.map(s => (
             <button
               key={s.value}
@@ -105,9 +106,8 @@ export default function Dashboard() {
           ))}
         </div>
 
-        <div className="w-px h-5 bg-surface-border" />
-
-        <div className="flex gap-1 flex-wrap">
+        {/* Row 2: Liga */}
+        <div className="flex items-center gap-1 flex-wrap pl-6">
           {LEAGUES
             .filter(l => !sport || l.value === '' ||
               (sport === 'football' && ['BL1','BL2','PL','PD','SSL'].includes(l.value)) ||
