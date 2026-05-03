@@ -1,14 +1,29 @@
 @echo off
-echo Starte Sports Prediction Dashboard...
+echo ============================================
+echo  Sports Prediction Dashboard
+echo ============================================
+echo.
 
-start "Backend" cmd /k "cd /d "%~dp0backend" && "%~dp0.venv\Scripts\uvicorn.exe" main:app --reload --port 8000"
+set ROOT=%~dp0
 
-timeout /t 3 /nobreak >nul
+echo [1/3] Python-Pakete pruefen...
+"%ROOT%.venv\Scripts\pip.exe" install -r "%ROOT%backend\requirements.txt" -q --disable-pip-version-check
+echo       OK
 
-start "Frontend" cmd /k "cd /d "%~dp0frontend" && npm run dev"
+echo [2/3] Node-Pakete pruefen...
+cd /d "%ROOT%frontend"
+npm install --silent 2>nul
+echo       OK
+
+echo [3/3] Server starten...
+start "Backend  (http://localhost:8000)" cmd /k "cd /d "%ROOT%backend" && "%ROOT%.venv\Scripts\uvicorn.exe" main:app --reload --port 8000"
+timeout /t 2 /nobreak >nul
+start "Frontend (http://localhost:5173)" cmd /k "cd /d "%ROOT%frontend" && npm run dev"
 
 echo.
-echo Backend:  http://localhost:8000
-echo Frontend: http://localhost:5173
+echo  Frontend: http://localhost:5173
+echo  Backend:  http://localhost:8000
 echo.
-echo Beide Fenster schliessen um die Server zu stoppen.
+echo  Fenster schliessen = Server stoppen.
+echo.
+pause
