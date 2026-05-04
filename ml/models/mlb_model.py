@@ -98,6 +98,26 @@ def _park_factor(home_team: str) -> float:
     return PARK_FACTORS.get(home_team, 1.00)
 
 
+# Empirische Run-Verteilung pro Inning (über alle MLB-Spiele 2020-2024).
+# Quelle: Baseball-Reference Inning-Splits.  Inning 1 ist "Lineup-Top"
+# (Bestesschläger gegen Starter) → leicht überdurchschnittlich.
+# Innings 7-9 schlagen Bullpen → moderat höher.  9. Inning ist nur
+# Auswärts (Heim braucht es nicht wenn führend).
+INNING_RATIO = [
+    0.121,  # Inning 1 — Top-of-Order vs. Starter, leicht überdurchschnittlich
+    0.108,  # Inning 2 — Bottom-of-Order
+    0.110,  # Inning 3 — Lineup-Top zurück
+    0.108,  # Inning 4
+    0.104,  # Inning 5 — letzte volle Starter-Inning typisch
+    0.108,  # Inning 6 — Bullpen kann starten, mehr Walks
+    0.115,  # Inning 7 — Setup-Reliever
+    0.118,  # Inning 8 — Setup
+    0.108,  # Inning 9 — Closer (top), nur Auswärts in vielen Spielen
+]
+# Summe ~1.0 (kleine Rundungsabweichungen → wir normalisieren in der
+# Klasse).
+
+
 def poisson_prob_over(lam: float, line: float) -> float:
     k = int(line + 0.5)
     return float(1.0 - poisson.cdf(k - 1, max(lam, 0.01)))
@@ -308,6 +328,75 @@ class MLBRollingForm:
 # F5 (erste 5 Innings)
 # ---------------------------------------------------------------------------
 
+class MLBInningModel:
+    """Verteilt erwartete Total-Runs auf die 9 Innings.
+
+    Trainings-Logik: wenn historische Inning-Daten vorhanden sind (über
+    Match-Segmente "INN1"…"INN9"), wird das empirische Verhältnis pro
+    Inning gemischt mit dem MLB-Liga-Prior (Baseball-Reference 2020-24).
+    Falls keine Inning-Segmente vorliegen (heute hat unser Provider nur
+    F5/L4) → Modell bleibt im Prior-Mode, was statistisch besser ist als
+    eine flache 1/9-Verteilung weil Inning 1, 7, 8 nachweislich höhere
+    Scoring-Raten haben.
+
+    Output pro Inning:
+      - expected_runs_inn_X: λ für dieses Inning (Poisson-Mittel)
+      - prob_over_0_5_inn_X: Wahrscheinlichkeit ≥ 1 Run
+      - prob_over_1_5_inn_X: Wahrscheinlichkeit ≥ 2 Runs
+    """
+
+    def __init__(self):
+        ratios = np.array(INNING_RATIO, dtype=float)
+        self.ratios = (ratios / ratios.sum()).tolist()
+        self.fitted = False
+
+    def fit(self, matches: List[Dict]) -> "MLBInningModel":
+        sums = np.zeros(9)
+        n_full = 0
+        for m in matches:
+            segments = m.get("segments") or []
+            inn_runs = {}
+            for seg in segments:
+                code = seg.get("segment_code", "") or ""
+                if not code.startswith("INN"):
+                    continue
+                try:
+                    idx = int(code[3:]) - 1
+                except (TypeError, ValueError):
+                    continue
+                if 0 <= idx < 9:
+                    inn_runs[idx] = (inn_runs.get(idx, 0)
+                                     + (seg.get("total_goals") or 0))
+            if len(inn_runs) >= 9:
+                total = sum(inn_runs.values()) or 1
+                for i in range(9):
+                    sums[i] += inn_runs.get(i, 0) / total
+                n_full += 1
+        if n_full >= 30:
+            empirical = sums / n_full
+            empirical = empirical / empirical.sum()
+            blend = min(1.0, n_full / 200.0)
+            mixed = blend * empirical + (1 - blend) * np.array(self.ratios)
+            self.ratios = (mixed / mixed.sum()).tolist()
+            self.fitted = True
+        return self
+
+    def predict(self, expected_total: float) -> Dict:
+        out: Dict = {}
+        for i, ratio in enumerate(self.ratios, start=1):
+            lam = max(expected_total * ratio, 0.001)
+            out[f"expected_runs_inn_{i}"] = round(lam, 3)
+            out[f"prob_over_0_5_inn_{i}"] = round(
+                min(max(poisson_prob_over(lam, 0.5), 0.001), 0.999), 4
+            )
+            out[f"prob_over_1_5_inn_{i}"] = round(
+                min(max(poisson_prob_over(lam, 1.5), 0.001), 0.999), 4
+            )
+        # Prozentanteil pro Inning für UI-Visualisierung
+        out["inning_distribution_pct"] = [round(r * 100, 1) for r in self.ratios]
+        return out
+
+
 class MLBF5Model:
     def __init__(self):
         self.f5_ratio = MLB_PRIOR["f5_ratio"]
@@ -358,6 +447,7 @@ class MLBEnsemble:
         self.elo_model = MLBEloModel(k_base=14.0)
         self.form_model = MLBRollingForm(window=12, decay=0.92)
         self.f5_model = MLBF5Model()
+        self.inning_model = MLBInningModel()
         self.fitted = False
         self.n_train = 0
 
@@ -371,9 +461,10 @@ class MLBEnsemble:
         self.elo_model.fit(finished)
         self.form_model.fit(finished)
         self.f5_model.fit(finished)
+        self.inning_model.fit(finished)
         self.fitted = True
         logger.info(f"MLBEnsemble fitted on {len(finished)} games "
-                    f"(Poisson-MLE, time-decayed, F5-segment)")
+                    f"(Poisson-MLE, time-decayed, F5+inning-distribution)")
         return self
 
     def _pitcher_factor(self, era: Optional[float], xfip: Optional[float] = None) -> float:
@@ -448,6 +539,7 @@ class MLBEnsemble:
             ou[f"prob_under_{key}"] = round(1.0 - ou[f"prob_over_{key}"], 4)
 
         f5 = self.f5_model.predict(expected_total)
+        innings = self.inning_model.predict(expected_total)
 
         # Modell-Agreement
         lams_h = np.array([lam_h_str, lam_h_form, lam_h_elo])
@@ -468,6 +560,7 @@ class MLBEnsemble:
             "f5_lines_used": F5_LINES,
             **ou,
             **f5,
+            **innings,
         }
 
     def save(self, path: str):

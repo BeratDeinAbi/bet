@@ -13,13 +13,31 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 @router.post("/refresh")
 def refresh_matches(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    """Fetch today's real matches from ESPN/NHL API and generate predictions."""
+    """Fetch today's real matches from ESPN/NHL API and generate predictions.
+
+    Bestehende Predictions für noch nicht gestartete Spiele werden vorher
+    gelöscht, damit Schema-Änderungen (z. B. neue ``extra_markets``-Keys
+    nach Modell-Update) sofort wirken.
+    """
+    from app.db.models import Match, Prediction
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    stale = (
+        db.query(Prediction)
+        .join(Match, Prediction.match_id == Match.id)
+        .filter(Match.kickoff_time > now)
+        .all()
+    )
+    for p in stale:
+        db.delete(p)
+    db.commit()
+
     def _run(db):
         n = ingest_today_matches(db)
         p = predict_today(db)
         return n, p
     background_tasks.add_task(_run, db)
-    return {"status": "refresh started — real data from ESPN + NHL API"}
+    return {"status": "refresh started", "stale_predictions_cleared": len(stale)}
 
 
 @router.post("/train")

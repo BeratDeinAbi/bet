@@ -68,12 +68,14 @@ def _fallback_football_predict(home_team: str, away_team: str) -> Dict:
 def _fallback_mlb_predict(home_team: str, away_team: str) -> Dict:
     """Fallback wenn kein MLB-Modell trainiert ist."""
     from ml.models.mlb_model import (
-        MLB_PRIOR, MLBF5Model, TOTAL_LINES, poisson_prob_over,
+        MLB_PRIOR, MLBF5Model, MLBInningModel, TOTAL_LINES, poisson_prob_over,
+        _park_factor,
     )
     avg = MLB_PRIOR["avg_runs"]
     home_adv = MLB_PRIOR["home_adv"]
-    lam_h = (avg / 2.0) * home_adv
-    lam_a = avg / 2.0
+    park = _park_factor(home_team)
+    lam_h = (avg / 2.0) * home_adv * park
+    lam_a = (avg / 2.0) * park
     total = lam_h + lam_a
     ou = {}
     for line in TOTAL_LINES:
@@ -82,13 +84,16 @@ def _fallback_mlb_predict(home_team: str, away_team: str) -> Dict:
         ou[f"prob_over_{key}"] = round(min(max(p, 0.001), 0.999), 4)
         ou[f"prob_under_{key}"] = round(1.0 - ou[f"prob_over_{key}"], 4)
     f5 = MLBF5Model().predict(total)
+    innings = MLBInningModel().predict(total)
     return {
         "expected_home_runs": round(lam_h, 3),
         "expected_away_runs": round(lam_a, 3),
         "expected_total_runs": round(total, 3),
         "model_agreement_score": 0.5,
+        "park_factor": round(park, 3),
         **ou,
         **f5,
+        **innings,
     }
 
 
@@ -279,7 +284,8 @@ def predict_match(db: Session, match: Match) -> Optional[Prediction]:
             or k.startswith("expected_runs_") or k.startswith("expected_total_")
             or k.startswith("expected_home_runs") or k.startswith("expected_away_runs")
             or k.startswith("pitcher_factor_")
-            or k in ("total_lines_used", "f5_lines_used", "park_factor")
+            or k in ("total_lines_used", "f5_lines_used", "park_factor",
+                     "inning_distribution_pct")
         }
     elif sport == "hockey":
         # B2B-Flags für UI-Anzeige im Match-Detail
