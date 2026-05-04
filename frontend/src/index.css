@@ -5,43 +5,25 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --color-bg: #0f0f0f;
-    --color-surface: #131313;
-  }
-
   body {
-    @apply bg-surface text-gray-100 font-sans;
-    background-color: #0f0f0f;
+    @apply bg-[#0d0d0d] text-gray-100 font-sans;
   }
 
-  * {
-    @apply border-surface-border;
-  }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
 }
 
 @layer utilities {
-  .glass {
+  .card {
     @apply bg-surface-mid border border-surface-border rounded-xl;
   }
-
-  .card {
-    @apply bg-surface-mid border border-surface-border rounded-xl p-4;
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
-
-  .badge-high {
-    @apply bg-accent-green/20 text-accent-green text-xs font-semibold px-2 py-0.5 rounded-full;
-  }
-
-  .badge-medium {
-    @apply bg-accent-amber/20 text-accent-amber text-xs font-semibold px-2 py-0.5 rounded-full;
-  }
-
-  .badge-low {
-    @apply bg-accent-red/20 text-accent-red text-xs font-semibold px-2 py-0.5 rounded-full;
-  }
-
-  .prob-bar-fill {
-    @apply h-1.5 rounded-full bg-accent-blue transition-all duration-500;
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
 }

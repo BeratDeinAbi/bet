@@ -15,12 +15,12 @@ const LABELS: Record<ConfidenceLabel, string> = {
 export default function ConfidenceBadge({ label, score }: Props) {
   return (
     <span className={clsx(
-      'text-xs font-semibold px-2 py-0.5 rounded-full',
-      label === 'HIGH' && 'bg-accent-green/20 text-accent-green',
-      label === 'MEDIUM' && 'bg-accent-amber/20 text-accent-amber',
-      label === 'LOW' && 'bg-accent-red/20 text-accent-red',
+      'text-[10px] font-bold px-2 py-0.5 rounded tracking-wider uppercase',
+      label === 'HIGH' && 'bg-accent-green/15 text-accent-green',
+      label === 'MEDIUM' && 'bg-accent-amber/15 text-accent-amber',
+      label === 'LOW' && 'bg-white/5 text-gray-500',
     )}>
-      {LABELS[label]}{score !== undefined ? ` ${Math.round(score * 100)}%` : ''}
+      {LABELS[label]}{score !== undefined ? ` · ${Math.round(score * 100)}%` : ''}
     </span>
   )
 }

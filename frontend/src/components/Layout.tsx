@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { Activity, BarChart2, Zap } from 'lucide-react'
+import { Zap } from 'lucide-react'
 import { useState } from 'react'
 import Top3Modal from './Top3Modal'
 import { useQuery } from '@tanstack/react-query'
@@ -11,46 +11,51 @@ export default function Layout() {
   const healthQuery = useQuery({ queryKey: ['health'], queryFn: api.health, retry: false })
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#0f0f0f' }}>
-      {/* Header */}
-      <header className="border-b border-surface-border px-6 py-3 flex items-center justify-between sticky top-0 z-50" style={{ background: '#111111' }}>
+    <div className="min-h-screen flex flex-col bg-[#0d0d0d]">
+      <header className="border-b border-surface-border px-6 flex items-center justify-between sticky top-0 z-50 bg-[#0d0d0d]/95 backdrop-blur-sm" style={{ height: 52 }}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-accent-green/20 flex items-center justify-center">
-            <Activity className="w-4 h-4 text-accent-green" />
-          </div>
-          <span className="font-display font-bold text-white text-lg tracking-tight">
-            Prediction Dashboard
+          <span className="font-display font-extrabold text-white tracking-tight" style={{ fontSize: 15 }}>
+            Prediction<span className="text-accent-green">.</span>
           </span>
           <span className={clsx(
-            'text-xs px-2 py-0.5 rounded-full font-medium ml-1',
-            healthQuery.data ? 'bg-accent-green/20 text-accent-green' : 'bg-accent-red/20 text-accent-red'
+            'text-[10px] px-1.5 py-0.5 rounded font-bold tracking-widest uppercase',
+            healthQuery.data
+              ? 'bg-accent-green/15 text-accent-green'
+              : 'bg-red-500/15 text-red-400'
           )}>
-            {healthQuery.data ? 'LIVE' : 'OFFLINE'}
+            {healthQuery.data ? 'Live' : 'Offline'}
           </span>
         </div>
 
-        <nav className="hidden md:flex items-center gap-1">
-          <NavLink to="/" end className={({ isActive }) =>
-            clsx('px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-              isActive ? 'bg-surface-high text-white' : 'text-gray-400 hover:text-white hover:bg-surface-mid')
-          }>
-            Today
-          </NavLink>
-          <NavLink to="/backtests" className={({ isActive }) =>
-            clsx('px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-              isActive ? 'bg-surface-high text-white' : 'text-gray-400 hover:text-white hover:bg-surface-mid')
-          }>
-            Backtests
-          </NavLink>
+        <nav className="flex items-center h-full">
+          {[
+            { to: '/', label: 'Today', end: true },
+            { to: '/backtests', label: 'Backtests', end: false },
+          ].map(({ to, label, end }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              className={({ isActive }) =>
+                clsx(
+                  'px-4 h-full flex items-center text-sm font-medium border-b-2 transition-colors',
+                  isActive
+                    ? 'border-white text-white'
+                    : 'border-transparent text-gray-500 hover:text-gray-300'
+                )
+              }
+            >
+              {label}
+            </NavLink>
+          ))}
         </nav>
 
         <button
           onClick={() => setTop3Open(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm transition-all"
-          style={{ background: 'linear-gradient(135deg, #8eff71 0%, #60a5fa 100%)', color: '#0f0f0f' }}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-accent-green text-[#0d0d0d] text-sm font-bold hover:opacity-90 transition-opacity"
         >
-          <Zap className="w-4 h-4" />
-          Top 3 Picks
+          <Zap className="w-3.5 h-3.5" />
+          Top 3
         </button>
       </header>
 
