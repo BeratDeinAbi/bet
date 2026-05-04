@@ -4,7 +4,7 @@ Ingestion service: fetches today's matches and historical data, stores in DB.
 import logging
 import time
 from datetime import datetime, timezone, date
-from typing import List, Set
+from typing import List, Optional, Set
 
 from sqlalchemy.orm import Session
 
@@ -47,8 +47,22 @@ def _ensure_competition(db: Session, code: str) -> Competition:
     return comp
 
 
+def _extract_context(pm: ProviderMatch) -> Optional[dict]:
+    """Sammelt sport-spezifische Live-Kontext-Daten (Pitcher-ERA, Goalie etc.),
+    die der Provider via dynamische setattr() angehängt hat."""
+    ctx = {}
+    for key in ("home_pitcher_era", "away_pitcher_era",
+                "home_pitcher_xfip", "away_pitcher_xfip",
+                "home_goalie", "away_goalie"):
+        val = getattr(pm, key, None)
+        if val is not None:
+            ctx[key] = val
+    return ctx or None
+
+
 def _upsert_match(db: Session, pm: ProviderMatch, competition_id: int) -> Match:
     match = db.query(Match).filter(Match.external_id == pm.external_id).first()
+    ctx = _extract_context(pm)
     if not match:
         match = Match(
             external_id=pm.external_id,
@@ -61,12 +75,15 @@ def _upsert_match(db: Session, pm: ProviderMatch, competition_id: int) -> Match:
             home_score=pm.home_score,
             away_score=pm.away_score,
             source=pm.sport,
+            context=ctx,
         )
         db.add(match)
     else:
         match.status = pm.status
         match.home_score = pm.home_score
         match.away_score = pm.away_score
+        if ctx:
+            match.context = ctx
         # Mock-Matches immer mit aktueller Kickoff-Zeit überschreiben
         if pm.external_id.startswith("mock_"):
             match.kickoff_time = _parse_dt(pm.kickoff_time)

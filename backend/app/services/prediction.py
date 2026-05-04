@@ -224,16 +224,37 @@ def predict_match(db: Session, match: Match) -> Optional[Prediction]:
     elif sport == "baseball":
         model = _get_mlb_model()
         if model and model.fitted:
-            raw_preds = model.predict(home, away)
+            ctx = match.context or {}
+            raw_preds = model.predict(
+                home, away,
+                home_pitcher_era=ctx.get("home_pitcher_era"),
+                away_pitcher_era=ctx.get("away_pitcher_era"),
+                home_pitcher_xfip=ctx.get("home_pitcher_xfip"),
+                away_pitcher_xfip=ctx.get("away_pitcher_xfip"),
+            )
         else:
             raw_preds = _fallback_mlb_predict(home, away)
     else:
         return None
 
-    # Stability: slight noise simulation for multi-run stability score
+    # Datengetriebene Stability: Anzahl Trainings-Spiele bestimmt, wie sicher
+    # die Team-Stärken sind.  Modelle mit > 200 Trainings-Spielen → 0.9,
+    # < 30 Spiele → 0.4.  Plus deterministische Hash-Streuung damit nicht
+    # alle Predictions exakt denselben Confidence kriegen.
     import numpy as np
+    n_train = getattr(model, "n_train", 0) if (model and getattr(model, "fitted", False)) else 0
+    if n_train >= 200:
+        base_stab = 0.90
+    elif n_train >= 100:
+        base_stab = 0.78
+    elif n_train >= 30:
+        base_stab = 0.62
+    elif n_train > 0:
+        base_stab = 0.50
+    else:
+        base_stab = 0.40   # Fallback ohne trainiertes Modell
     rng = np.random.default_rng(hash(f"{home}{away}") % (2**32))
-    stability = float(np.clip(0.7 + rng.normal(0, 0.08), 0.4, 1.0))
+    stability = float(np.clip(base_stab + rng.normal(0, 0.04), 0.30, 0.98))
     agreement = raw_preds.get("model_agreement_score", 0.5)
     confidence = round(0.5 * stability + 0.5 * agreement, 3)
 
@@ -258,8 +279,13 @@ def predict_match(db: Session, match: Match) -> Optional[Prediction]:
             or k.startswith("expected_runs_") or k.startswith("expected_total_")
             or k.startswith("expected_home_runs") or k.startswith("expected_away_runs")
             or k.startswith("pitcher_factor_")
-            or k in ("total_lines_used", "f5_lines_used")
+            or k in ("total_lines_used", "f5_lines_used", "park_factor")
         }
+    elif sport == "hockey":
+        # B2B-Flags für UI-Anzeige im Match-Detail
+        extra_markets = {
+            k: raw_preds[k] for k in ("b2b_home", "b2b_away") if k in raw_preds
+        } or None
 
     # Schema-Spalten: für Basketball/Baseball mit Sentinel-Werten füllen,
     # damit NOT-NULL-Felder gesetzt sind; die echten Werte stehen in

@@ -55,6 +55,10 @@ class Match(Base):
     home_score = Column(Integer, nullable=True)
     away_score = Column(Integer, nullable=True)
     source = Column(String(50))  # provider name
+    # Sport-spezifische Live-Kontext-Daten (Pitcher-ERA, Goalie, Park-Wetter
+    # …) — alles was vom Provider mitkommt aber nicht in das normalisierte
+    # Schema passt.  Wird vom Prediction-Service zur Adjust-Time gelesen.
+    context = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     competition = relationship("Competition", back_populates="matches")

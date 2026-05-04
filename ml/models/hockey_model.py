@@ -27,7 +27,15 @@ np.random.seed(SEED)
 NHL_PRIOR = {
     "avg_goals": 6.10,
     "home_adv": 1.08,            # ~8% home advantage in NHL
-    "p_ratio": [0.32, 0.34, 0.34],
+    # Empirisch: P3 hat höchstes Scoring (Pulled-Goalie / Empty-Netter / Müdigkeit).
+    # Korrigiert von der zu glatten 0.32/0.34/0.34-Verteilung.
+    "p_ratio": [0.305, 0.325, 0.370],
+    # Back-to-Back-Penalty: Teams am 2. Tag in 2-Tage-Fenster scoren ~0.30 Goals weniger
+    # und kassieren ~0.25 Goals mehr (laut natstattrick.com Last-5-Saisons).
+    "b2b_offense_factor": 0.93,   # -7 % Offensive bei B2B-zweite-Nacht
+    "b2b_defense_factor": 1.05,   # +5 % gegnerische Goals bei B2B
+    # Empty-Net-Goals pro Spiel (für Bias-Korrektur)
+    "empty_net_goals_per_game": 0.35,
 }
 
 
@@ -45,7 +53,7 @@ def _parse_kickoff(s: Optional[str]) -> Optional[datetime]:
         return None
 
 
-def _time_weight(kickoff: Optional[datetime], half_life_days: float = 75.0) -> float:
+def _time_weight(kickoff: Optional[datetime], half_life_days: float = 35.0) -> float:
     if kickoff is None:
         return 0.6
     now = datetime.now(timezone.utc)
@@ -60,7 +68,7 @@ def _time_weight(kickoff: Optional[datetime], half_life_days: float = 75.0) -> f
 # ---------------------------------------------------------------------------
 
 class NHLTeamStrengthModel:
-    def __init__(self, l2_lambda: float = 0.4, half_life_days: float = 75.0):
+    def __init__(self, l2_lambda: float = 0.4, half_life_days: float = 35.0):
         self.l2 = l2_lambda
         self.half_life = half_life_days
         self.attack: Dict[str, float] = {}
@@ -289,8 +297,24 @@ class NHLEnsemble:
         self.elo_model = NHLEloModel(k_base=16.0)
         self.form_model = NHLRollingForm(window=10, decay=0.90)
         self.period_model = NHLPeriodModel()
+        self.last_game_date: Dict[str, datetime] = {}
         self.fitted = False
         self.n_train = 0
+
+    def _build_b2b_index(self, matches: List[Dict]) -> None:
+        """Indexiert pro Team das letzte Spieldatum aus den Trainingsdaten,
+        damit predict() B2B (game-on-back-to-back-nights) erkennen kann."""
+        sorted_matches = sorted(
+            matches,
+            key=lambda m: _parse_kickoff(m.get("kickoff_time"))
+            or datetime.min.replace(tzinfo=timezone.utc),
+        )
+        for m in sorted_matches:
+            kt = _parse_kickoff(m.get("kickoff_time"))
+            if not kt:
+                continue
+            self.last_game_date[m["home_team"]] = kt
+            self.last_game_date[m["away_team"]] = kt
 
     def fit(self, matches: List[Dict]) -> "NHLEnsemble":
         finished = [m for m in matches if m.get("home_score") is not None]
@@ -302,10 +326,25 @@ class NHLEnsemble:
         self.elo_model.fit(finished)
         self.form_model.fit(finished)
         self.period_model.fit(finished)
+        self._build_b2b_index(finished)
         self.fitted = True
         logger.info(f"NHLEnsemble fitted on {len(finished)} matches "
-                    f"(time-decayed, L2-regularized, rolling form)")
+                    f"(time-decayed, L2-regularized, rolling form, b2b-aware)")
         return self
+
+    def _is_back_to_back(self, team: str, target: Optional[datetime] = None) -> bool:
+        """True wenn ``team`` im Trainingsdatensatz vor weniger als 32h spielte."""
+        last = self.last_game_date.get(team)
+        if not last:
+            return False
+        ref = target or datetime.now(timezone.utc)
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        if ref.tzinfo is None:
+            ref = ref.replace(tzinfo=timezone.utc)
+        delta_h = (ref - last).total_seconds() / 3600.0
+        # Typisches B2B: 18–32 Stunden zwischen Game-Times
+        return 16.0 <= delta_h <= 32.0
 
     def predict(self, home_team: str, away_team: str) -> Dict:
         # 1. Strength baseline
@@ -337,11 +376,21 @@ class NHLEnsemble:
             weights[2] * np.log(lam_a_elo)
         ))
 
+        # 4b. Back-to-Back-Adjustment (Müdigkeit)
+        h_b2b = self._is_back_to_back(home_team)
+        a_b2b = self._is_back_to_back(away_team)
+        if h_b2b:
+            lam_h_final *= NHL_PRIOR["b2b_offense_factor"]
+            lam_a_final *= NHL_PRIOR["b2b_defense_factor"]
+        if a_b2b:
+            lam_a_final *= NHL_PRIOR["b2b_offense_factor"]
+            lam_h_final *= NHL_PRIOR["b2b_defense_factor"]
+
         expected_total = lam_h_final + lam_a_final
 
-        # 5. Over/Under for NHL lines (typical: 5.5, 6.5)
+        # 5. Over/Under for NHL lines (5.5/6.5/7.5 sind die populärsten Märkte)
         ou = {}
-        for line in [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5]:
+        for line in [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5]:
             key = str(line).replace(".", "_")
             p_over = poisson_prob_over(expected_total, line)
             ou[f"prob_over_{key}"] = round(min(max(p_over, 0.001), 0.999), 4)
@@ -361,6 +410,8 @@ class NHLEnsemble:
             "expected_away_goals": round(lam_a_final, 3),
             "expected_total_goals": round(expected_total, 3),
             "model_agreement_score": round(agreement, 3),
+            "b2b_home": h_b2b,
+            "b2b_away": a_b2b,
             **ou,
             **period_preds,
         }

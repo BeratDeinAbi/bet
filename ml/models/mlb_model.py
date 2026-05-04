@@ -45,11 +45,57 @@ MLB_PRIOR = {
     "avg_runs": 9.0,        # Total runs pro Spiel über die Liga (regulär 9 Innings)
     "home_adv": 1.04,       # ~4 % Home Edge in MLB
     "f5_ratio": 0.55,       # ca. 55 % der Runs fallen in den ersten 5 Innings
-    "league_era": 4.20,     # Liga-ERA-Mittel
+    "league_era": 4.20,     # Liga-ERA-Mittel (3-Jahres-Schnitt)
 }
 
 TOTAL_LINES = [6.5, 7.5, 8.0, 8.5, 9.0, 9.5, 10.5, 11.5]
 F5_LINES = [3.5, 4.5, 5.5]
+
+
+# Park-Run-Faktoren — Multiplier auf erwartete Total Runs, basiert auf
+# 3-Jahres-Average der Statcast-Park-Factors (2022–2024).
+# Werte > 1 = mehr Runs, < 1 = weniger.  Quelle: ESPN/Baseball-Reference,
+# auf Mittelwert 1.00 normalisiert.
+PARK_FACTORS: Dict[str, float] = {
+    # Hitter-Friendly
+    "Colorado Rockies":      1.18,   # Coors Field — Höhe
+    "Cincinnati Reds":       1.07,   # GABP — kurzes RF
+    "Boston Red Sox":        1.06,   # Fenway — Green Monster
+    "Texas Rangers":         1.04,   # Globe Life Field
+    "Philadelphia Phillies": 1.04,   # Citizens Bank
+    "Baltimore Orioles":     1.03,   # Camden Yards
+    "Toronto Blue Jays":     1.03,   # Rogers Centre
+    "Atlanta Braves":        1.02,   # Truist Park
+    "Chicago White Sox":     1.02,
+    "New York Yankees":      1.02,   # Short porch RF
+    "Arizona Diamondbacks":  1.01,
+    "Houston Astros":        1.01,
+    "Kansas City Royals":    1.00,
+    "Minnesota Twins":       1.00,
+    "Washington Nationals":  1.00,
+    "Los Angeles Angels":    0.99,
+    "St. Louis Cardinals":   0.99,
+    "Milwaukee Brewers":     0.99,
+    "Tampa Bay Rays":        0.98,   # Tropicana — Dome
+    "Chicago Cubs":          0.98,   # Wrigley — wind dependent (default ohne Wetter)
+    "Cleveland Guardians":   0.98,
+    # Pitcher-Friendly
+    "New York Mets":         0.97,
+    "Athletics":             0.96,
+    "Oakland Athletics":     0.96,
+    "Los Angeles Dodgers":   0.96,
+    "Detroit Tigers":        0.95,
+    "Seattle Mariners":      0.94,   # T-Mobile Park
+    "Pittsburgh Pirates":    0.94,
+    "Miami Marlins":         0.93,   # loanDepot Park
+    "San Francisco Giants":  0.92,   # Oracle Park
+    "San Diego Padres":      0.92,   # Petco
+}
+
+
+def _park_factor(home_team: str) -> float:
+    """Liefert den Park-Factor des Heimstadiums.  Default 1.00 wenn Team unbekannt."""
+    return PARK_FACTORS.get(home_team, 1.00)
 
 
 def poisson_prob_over(lam: float, line: float) -> float:
@@ -330,12 +376,19 @@ class MLBEnsemble:
                     f"(Poisson-MLE, time-decayed, F5-segment)")
         return self
 
-    def _pitcher_factor(self, era: Optional[float]) -> float:
-        """ERA-Mult: < Liga-ERA → weniger erlaubte Runs → niedrigerer Mult."""
-        if era is None or era <= 0:
+    def _pitcher_factor(self, era: Optional[float], xfip: Optional[float] = None) -> float:
+        """Pitcher-Mult auf erwartete gegnerische Runs.
+
+        Bevorzugt xFIP wenn verfügbar (deutlich besserer Prediktor als ERA),
+        sonst ERA.  Clamp 0.75–1.25 — eng genug, um Outlier-ERA-Werte
+        kleiner Sample-Größen zu dämpfen, weit genug für echte Cy-Young-vs-
+        Replacement-Level-Spreads.  (Vorher 0.85–1.15 war zu konservativ.)
+        """
+        metric = xfip if (xfip is not None and xfip > 0) else era
+        if metric is None or metric <= 0:
             return 1.0
-        f = era / MLB_PRIOR["league_era"]
-        return float(np.clip(f, 0.85, 1.15))
+        f = metric / MLB_PRIOR["league_era"]
+        return float(np.clip(f, 0.75, 1.25))
 
     def predict(
         self,
@@ -343,6 +396,8 @@ class MLBEnsemble:
         away_team: str,
         home_pitcher_era: Optional[float] = None,
         away_pitcher_era: Optional[float] = None,
+        home_pitcher_xfip: Optional[float] = None,
+        away_pitcher_xfip: Optional[float] = None,
     ) -> Dict:
         lam_h_str, lam_a_str = self.strength_model.predict_lambdas(home_team, away_team)
         avg_per_team = self.strength_model.avg_runs / 2.0
@@ -371,12 +426,17 @@ class MLBEnsemble:
             + weights[2] * np.log(lam_a_elo)
         ))
 
-        # Pitcher-Adjustment (gegnerischer ERA wirkt auf Heim/Auswärts-Runs)
-        # Wenn Auswärtspitcher schlechte ERA hat → Heim-Team scort mehr.
-        h_factor = self._pitcher_factor(away_pitcher_era)
-        a_factor = self._pitcher_factor(home_pitcher_era)
+        # Pitcher-Adjustment (gegnerischer ERA/xFIP wirkt auf Heim/Auswärts-Runs)
+        # Wenn Auswärtspitcher schwach ist → Heim-Team scort mehr.
+        h_factor = self._pitcher_factor(away_pitcher_era, away_pitcher_xfip)
+        a_factor = self._pitcher_factor(home_pitcher_era, home_pitcher_xfip)
         lam_h_final *= h_factor
         lam_a_final *= a_factor
+
+        # Park-Adjustment — wirkt auf BEIDE Teams (Park modifiziert Total Runs).
+        park = _park_factor(home_team)
+        lam_h_final *= park
+        lam_a_final *= park
 
         expected_total = lam_h_final + lam_a_final
 
@@ -403,6 +463,7 @@ class MLBEnsemble:
             "model_agreement_score": round(agreement, 3),
             "pitcher_factor_home": round(h_factor, 3),
             "pitcher_factor_away": round(a_factor, 3),
+            "park_factor": round(park, 3),
             "total_lines_used": TOTAL_LINES,
             "f5_lines_used": F5_LINES,
             **ou,

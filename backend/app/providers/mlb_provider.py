@@ -83,7 +83,10 @@ class MLBProvider(BaseHockeyProvider):
         data = self._get("schedule", {
             "sportId": 1,
             "date": target_date,           # YYYY-MM-DD
-            "hydrate": "probablePitcher,team",
+            # ``probablePitcher(stats(group=pitching,type=season))`` lädt
+            # die Saison-ERA des Probable Pitchers direkt mit, sodass wir
+            # keinen Extra-Call pro Pitcher brauchen.
+            "hydrate": "probablePitcher(stats(group=pitching,type=season)),team",
         }) or {}
         games: List[dict] = []
         for d in data.get("dates", []) or []:
@@ -102,6 +105,30 @@ class MLBProvider(BaseHockeyProvider):
     def _team_id(t: dict) -> str:
         return str(t.get("team", {}).get("id") or "")
 
+    @staticmethod
+    def _probable_pitcher_era(team_block: dict) -> Optional[float]:
+        """Extrahiert Saison-ERA des probable pitchers aus dem Schedule-Hydrate.
+
+        MLB-StatsAPI liefert bei ``hydrate=probablePitcher`` ein ``probablePitcher``-
+        Objekt mit ``stats[]`` (für die aktuelle Saison).  Wir greifen auf
+        die ``pitching``-Stats zu und holen ``era`` als Float.  Liefert None
+        wenn nicht verfügbar (z. B. ganz junger Pitcher ohne Daten).
+        """
+        pp = team_block.get("probablePitcher") or {}
+        for stat in pp.get("stats", []) or []:
+            group = (stat.get("group") or {}).get("displayName", "").lower()
+            if group != "pitching":
+                continue
+            splits = stat.get("splits") or []
+            if not splits:
+                continue
+            era_str = (splits[0].get("stat") or {}).get("era")
+            try:
+                return float(era_str) if era_str else None
+            except (TypeError, ValueError):
+                return None
+        return None
+
     def _parse_game(self, raw: dict) -> ProviderMatch:
         teams = raw.get("teams", {}) or {}
         home = teams.get("home", {}) or {}
@@ -119,7 +146,7 @@ class MLBProvider(BaseHockeyProvider):
             except (ValueError, TypeError):
                 pass
 
-        return ProviderMatch(
+        pm = ProviderMatch(
             external_id=f"mlb_{raw.get('gamePk', '')}",
             sport="baseball",
             competition_code="MLB",
@@ -133,6 +160,11 @@ class MLBProvider(BaseHockeyProvider):
             home_team_external_id=self._team_id(home),
             away_team_external_id=self._team_id(away),
         )
+        # Pitcher-ERA als zusätzliche Attribute setzen (nicht im Dataclass-
+        # Schema → dynamisch).  Vom Prediction-Service via getattr() gelesen.
+        setattr(pm, "home_pitcher_era", self._probable_pitcher_era(home))
+        setattr(pm, "away_pitcher_era", self._probable_pitcher_era(away))
+        return pm
 
     @staticmethod
     def _segments_from_linescore(linescore: dict) -> List[dict]:

@@ -27,3 +27,17 @@ def get_db():
 def init_db():
     from app.db import models  # noqa: F401
     Base.metadata.create_all(bind=engine)
+    _migrate_add_columns()
+
+
+def _migrate_add_columns():
+    """Light-touch SQLite migration: hängt fehlende Spalten an, ohne dass
+    Alembic gebraucht wird.  Idempotent — fügt nur hinzu was fehlt."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(engine)
+    if "matches" not in inspector.get_table_names():
+        return
+    cols = {c["name"] for c in inspector.get_columns("matches")}
+    with engine.begin() as conn:
+        if "context" not in cols:
+            conn.execute(text("ALTER TABLE matches ADD COLUMN context JSON"))
