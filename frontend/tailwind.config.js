@@ -1,59 +1,74 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
-  darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        // Warme, papier-artige Off-Schwarz-Palette.  Nicht das übliche
-        // #0d0d0d-Tech-Grau, sondern leicht warm, damit Serif-Typo
-        // weniger steril wirkt.
+        // Helle Basis: leicht kühler Off-White-Ton mit Grün-Undertone.
+        // Kein reines Weiß — das ermüdet die Augen bei langen Sessions.
+        canvas: {
+          DEFAULT: '#f5f7f4',  // Page-Background
+          1: '#ffffff',         // Card-Surface (volle Helligkeit)
+          2: '#eef1ec',         // gehobene Surface
+          3: '#e3e7e0',         // sekundäre Surface
+          line: '#e1e5dd',      // sehr feine Trennlinie
+          border: '#cdd3c8',    // sichtbare Borders
+        },
+        // Text-Hierarchie
+        text: {
+          DEFAULT: '#1a1f1a',  // Primary (fast schwarz)
+          dim: '#3d4540',      // Sekundärer Body-Text
+          mute: '#6b7280',     // Labels / Subtitles
+          quiet: '#9ca3af',    // Meta / Disabled
+        },
+        // Grüner Akzent — gedeckt, nicht neon-grün
+        accent: {
+          DEFAULT: '#2d7a3e',
+          bright: '#3fa356',
+          soft: '#dcebe0',     // Heller Tint für Backgrounds
+          dim: '#1f5c2d',
+          // Backwards-compat-Aliase für alte Komponenten
+          green: '#2d7a3e',
+          blue: '#0369a1',
+          amber: '#b45309',
+          red: '#c2410c',
+        },
+        // Status-Farben — alle für hellen Hintergrund optimiert
+        pos: '#2d7a3e',
+        neg: '#c2410c',
+        warn: '#b45309',
+        live: '#dc2626',
+
+        // Kompatibilitäts-Aliasse, damit ältere Komponenten weiter rendern.
+        // (Werden über die Zeit weggeräumt.)
         ink: {
-          DEFAULT: '#0e0d0a',
-          1: '#15140f',
-          2: '#1c1a14',
-          3: '#26231c',
-          line: '#2d2a23',
-          border: '#3a362d',
+          DEFAULT: '#f5f7f4',
+          1: '#ffffff',
+          2: '#eef1ec',
+          3: '#e3e7e0',
+          line: '#e1e5dd',
+          border: '#cdd3c8',
         },
         paper: {
-          DEFAULT: '#f3ede0',
-          dim: '#cfc7b6',
-          mute: '#8a8478',
-          quiet: '#5b574e',
+          DEFAULT: '#1a1f1a',
+          dim: '#3d4540',
+          mute: '#6b7280',
+          quiet: '#9ca3af',
         },
-        // Ein einziger, gesetzter Akzent — Terracotta.  Liest sich
-        // nach „menschlich" statt nach „Tailwind blue".
         signal: {
-          DEFAULT: '#d97757',
-          high: '#e89674',
-          dim: '#a85a3f',
+          DEFAULT: '#2d7a3e',
+          high: '#3fa356',
+          dim: '#1f5c2d',
         },
-        live: '#dd4444',
-        pos: '#7a9e6e',
-        neg: '#c75a5a',
-
-        // Backwards-compat aliases — werden in alten Komponenten noch
-        // referenziert.  Mappen auf die neuen Tokens.
         surface: {
-          DEFAULT: '#0e0d0a',
-          low: '#15140f',
-          mid: '#1c1a14',
-          high: '#26231c',
-          border: '#2d2a23',
-        },
-        accent: {
-          green: '#7a9e6e',
-          blue: '#9bb7d4',
-          amber: '#d9a25a',
-          red: '#c75a5a',
+          DEFAULT: '#f5f7f4',
+          low: '#ffffff',
+          mid: '#ffffff',
+          high: '#eef1ec',
+          border: '#e1e5dd',
         },
       },
       fontFamily: {
-        // Fraunces: kontrastreicher Modern-Serif mit Persönlichkeit
-        //   → Headlines, Liga-Tag, Zahlen-Typografie.
-        // IBM Plex Sans: ruhiger Body-Sans, weniger generisch als Inter.
-        // IBM Plex Mono: für Stats und tabellarische Zahlen.
         display: ['"Fraunces"', 'Georgia', 'serif'],
         sans: ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
         mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],

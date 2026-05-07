@@ -29,7 +29,7 @@ export default function Top3Modal({ onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 overflow-y-auto bg-ink/85 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 overflow-y-auto bg-text/40 backdrop-blur-sm"
       onClick={onClose}
     >
       <div

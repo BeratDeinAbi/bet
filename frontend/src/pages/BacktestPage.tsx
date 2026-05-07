@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, AlertCircle, CheckCircle, XCircle } from 'lucide-react'
+import { Loader2, CheckCircle, XCircle } from 'lucide-react'
 import { api } from '../api/client'
 
 export default function BacktestPage() {
@@ -14,37 +14,61 @@ export default function BacktestPage() {
   })
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="mb-6">
-        <h1 className="font-display font-bold text-white text-2xl">Backtesting & Modell-Status</h1>
-        <p className="text-gray-500 text-sm mt-0.5">Walk-forward Validierung · 60/40 Split</p>
-      </div>
+    <div className="space-y-8 max-w-5xl mx-auto">
+      <header>
+        <p className="smallcaps text-text-mute text-[11px] mb-1.5">
+          Walk-forward · 60/40 Split
+        </p>
+        <h1 className="font-display font-medium text-text text-[36px] leading-[0.95] tracking-tighter2">
+          Backtest-<span className="italic font-normal text-accent">Details</span>.
+        </h1>
+        <p className="text-text-mute text-[14px] mt-2 max-w-xl">
+          Trainings-/Test-Aufteilung und Modell-Status für jede Liga.
+        </p>
+      </header>
 
-      {/* Model Status */}
-      <div className="card mb-6">
-        <h2 className="font-display font-semibold text-white mb-4">Modell-Status</h2>
+      {/* Modell-Status */}
+      <div className="card p-5">
+        <h2 className="font-display text-text text-[20px] mb-4">Modell-Status</h2>
         {loadModels ? (
-          <div className="flex gap-2 text-gray-500"><Loader2 className="w-4 h-4 animate-spin" /> Laden...</div>
+          <div className="flex gap-2 text-text-mute text-[13px]">
+            <Loader2 className="w-4 h-4 animate-spin" /> Laden…
+          </div>
         ) : (
-          <div className="space-y-2">
+          <div className="divide-y divide-canvas-line">
             {models?.map(m => (
-              <div key={m.model_name} className="flex items-center justify-between py-2 border-b border-surface-border last:border-0">
+              <div
+                key={m.model_name}
+                className="flex items-center justify-between py-2.5"
+              >
                 <div className="flex items-center gap-3">
-                  {m.active
-                    ? <CheckCircle className="w-4 h-4 text-accent-green" />
-                    : <XCircle className="w-4 h-4 text-accent-red" />
-                  }
+                  {m.active ? (
+                    <CheckCircle className="w-4 h-4 text-pos" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-neg" />
+                  )}
                   <div>
-                    <p className="text-white text-sm font-medium">{m.model_name}</p>
-                    <p className="text-gray-500 text-xs">{m.sport} · v{m.model_version}</p>
+                    <p className="text-text text-[13px] font-medium">
+                      {m.model_name}
+                    </p>
+                    <p className="text-text-mute text-[11px]">
+                      {m.sport} · v{m.model_version}
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${m.active ? 'bg-accent-green/20 text-accent-green' : 'bg-gray-800 text-gray-500'}`}>
+                  <span
+                    className={
+                      'text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded ' +
+                      (m.active
+                        ? 'bg-accent-soft text-accent-dim'
+                        : 'bg-canvas-3 text-text-mute')
+                    }
+                  >
                     {m.active ? 'Trainiert' : 'Nicht trainiert'}
                   </span>
                   {m.training_date && (
-                    <p className="text-gray-600 text-xs mt-0.5">
+                    <p className="text-text-quiet text-[11px] mt-0.5 font-mono">
                       {new Date(m.training_date).toLocaleDateString('de-DE')}
                     </p>
                   )}
@@ -55,37 +79,57 @@ export default function BacktestPage() {
         )}
       </div>
 
-      {/* Backtest Results */}
-      <div className="card">
-        <h2 className="font-display font-semibold text-white mb-4">Backtest-Ergebnisse</h2>
+      {/* Backtest-Ergebnisse */}
+      <div className="card p-5">
+        <h2 className="font-display text-text text-[20px] mb-4">
+          Backtest-Ergebnisse
+        </h2>
         {loadSummaries ? (
-          <div className="flex gap-2 text-gray-500"><Loader2 className="w-4 h-4 animate-spin" /> Laden...</div>
+          <div className="flex gap-2 text-text-mute text-[13px]">
+            <Loader2 className="w-4 h-4 animate-spin" /> Laden…
+          </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-[13px]">
               <thead>
-                <tr className="text-gray-500 text-xs border-b border-surface-border">
+                <tr className="text-text-quiet text-[10px] uppercase tracking-wider border-b border-canvas-line">
                   <th className="text-left py-2 pr-4">Sport</th>
                   <th className="text-left py-2 pr-4">Liga</th>
                   <th className="text-left py-2 pr-4">Markt</th>
                   <th className="text-right py-2 pr-4">MAE</th>
                   <th className="text-right py-2 pr-4">RMSE</th>
                   <th className="text-right py-2 pr-4">Brier</th>
-                  <th className="text-right py-2 pr-4">Kalibrierung</th>
+                  <th className="text-right py-2 pr-4">Kalibr.</th>
                   <th className="text-right py-2">N</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-canvas-line">
                 {summaries?.map((s, i) => (
-                  <tr key={i} className="border-b border-surface-border last:border-0">
-                    <td className="py-2.5 pr-4 text-white">{s.sport === 'football' ? '⚽' : '🏒'} {s.sport}</td>
-                    <td className="py-2.5 pr-4 text-gray-300">{s.league || '-'}</td>
-                    <td className="py-2.5 pr-4 text-gray-300 font-mono text-xs">{s.market}</td>
-                    <td className="py-2.5 pr-4 text-right font-mono text-accent-blue">{s.mae.toFixed(3)}</td>
-                    <td className="py-2.5 pr-4 text-right font-mono text-accent-blue">{s.rmse.toFixed(3)}</td>
-                    <td className="py-2.5 pr-4 text-right font-mono">{s.brier_score.toFixed(3)}</td>
-                    <td className="py-2.5 pr-4 text-right font-mono text-xs text-accent-green">{s.calibration_error.toFixed(3)}</td>
-                    <td className="py-2.5 text-right text-gray-500">{s.sample_size}</td>
+                  <tr key={i}>
+                    <td className="py-2.5 pr-4 text-text capitalize">
+                      {s.sport}
+                    </td>
+                    <td className="py-2.5 pr-4 text-text-dim">
+                      {s.league || '-'}
+                    </td>
+                    <td className="py-2.5 pr-4 text-text-dim font-mono text-[11px]">
+                      {s.market}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right font-mono text-accent-dim tabular-nums">
+                      {s.mae.toFixed(3)}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right font-mono text-accent-dim tabular-nums">
+                      {s.rmse.toFixed(3)}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right font-mono text-text-dim tabular-nums">
+                      {s.brier_score.toFixed(3)}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right font-mono text-pos tabular-nums">
+                      {s.calibration_error.toFixed(3)}
+                    </td>
+                    <td className="py-2.5 text-right text-text-mute font-mono">
+                      {s.sample_size}
+                    </td>
                   </tr>
                 ))}
               </tbody>

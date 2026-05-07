@@ -1,4 +1,4 @@
-import { Outlet, NavLink } from 'react-router-dom'
+import { Outlet, NavLink, Link } from 'react-router-dom'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import clsx from 'clsx'
@@ -6,12 +6,11 @@ import Top3Modal from './Top3Modal'
 import { api } from '../api/client'
 
 /**
- * Header-Anatomie:
- *  - Serif-Wordmark links, kein Tech-Logo, kein Emoji.
- *  - Live-Status als kleiner Punkt (kein Pill mit „LIVE"-Caps-Lock).
- *  - Nav als unterstrichene Links — Akzent-Underline statt voll-bordy
- *    Tab-Indicator.
- *  - „Top 3"-CTA als Inline-Link mit Akzent-Pfeil statt grünem Block.
+ * ThePredicter — Top-Level-Layout.
+ *
+ * Header: Wordmark, Tab-Navigation (Heute / Modellgüte), Top-3-Trigger.
+ * Body: Routes rendern in den Outlet — das Dashboard bringt eigene
+ *   linke Sport-Sidebar mit, andere Seiten nutzen die volle Breite.
  */
 export default function Layout() {
   const [top3Open, setTop3Open] = useState(false)
@@ -19,15 +18,16 @@ export default function Layout() {
     queryKey: ['health'],
     queryFn: api.health,
     retry: false,
+    refetchInterval: 30_000,
   })
 
   return (
-    <div className="min-h-screen flex flex-col bg-ink">
-      <header className="sticky top-0 z-40 backdrop-blur-md bg-ink/85 border-b border-ink-line">
-        <div className="max-w-6xl mx-auto px-5 sm:px-8 h-14 flex items-center justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <span className="font-display font-semibold text-paper text-[19px] tracking-tighter2 leading-none">
-              <span className="italic">b</span>riefing
+    <div className="min-h-screen flex flex-col bg-canvas">
+      <header className="sticky top-0 z-40 bg-canvas-1/95 backdrop-blur-md border-b border-canvas-border">
+        <div className="max-w-7xl mx-auto px-5 sm:px-8 h-14 flex items-center justify-between gap-6">
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <span className="font-display font-semibold text-text text-[20px] tracking-tighter2 leading-none">
+              The<span className="italic font-medium text-accent">Predicter</span>
             </span>
             <span
               className={clsx(
@@ -36,12 +36,13 @@ export default function Layout() {
               )}
               title={healthQuery.data ? 'API live' : 'API offline'}
             />
-          </div>
+          </Link>
 
-          <nav className="hidden sm:flex items-center gap-6">
+          <nav className="hidden sm:flex items-center gap-1">
             {[
               { to: '/', label: 'Heute', end: true },
-              { to: '/backtests', label: 'Modellgüte', end: false },
+              { to: '/performance', label: 'Modellgüte', end: false },
+              { to: '/backtests', label: 'Backtest-Details', end: false },
             ].map(({ to, label, end }) => (
               <NavLink
                 key={to}
@@ -49,44 +50,37 @@ export default function Layout() {
                 end={end}
                 className={({ isActive }) =>
                   clsx(
-                    'text-[13px] font-medium tracking-tight transition-colors relative py-1',
+                    'text-[13px] font-medium tracking-tight transition-colors px-3 py-1.5 rounded-md',
                     isActive
-                      ? 'text-paper'
-                      : 'text-paper-mute hover:text-paper-dim',
+                      ? 'bg-accent-soft text-accent-dim'
+                      : 'text-text-mute hover:text-text hover:bg-canvas-2',
                   )
                 }
               >
-                {({ isActive }) => (
-                  <>
-                    {label}
-                    {isActive && (
-                      <span className="absolute -bottom-[1px] left-0 right-0 h-px bg-signal" />
-                    )}
-                  </>
-                )}
+                {label}
               </NavLink>
             ))}
           </nav>
 
           <button
             onClick={() => setTop3Open(true)}
-            className="group flex items-center gap-2 text-[13px] font-medium text-paper-dim hover:text-paper transition-colors"
+            className="flex items-center gap-2 text-[13px] font-semibold text-canvas-1 bg-accent hover:bg-accent-bright transition-colors px-3.5 py-1.5 rounded-md shrink-0"
           >
-            <span className="font-display italic text-signal text-[15px] leading-none">→</span>
+            <span className="leading-none">→</span>
             Top 3 heute
           </button>
         </div>
       </header>
 
-      <main className="flex-1 max-w-6xl mx-auto w-full px-5 sm:px-8 py-8 sm:py-12">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-5 sm:px-8 py-8">
         <Outlet />
       </main>
 
-      <footer className="border-t border-ink-line text-paper-quiet text-[11px]">
-        <div className="max-w-6xl mx-auto px-5 sm:px-8 py-4 flex flex-col sm:flex-row justify-between gap-1">
+      <footer className="border-t border-canvas-line text-text-quiet text-[11px] mt-auto">
+        <div className="max-w-7xl mx-auto px-5 sm:px-8 py-4 flex flex-col sm:flex-row justify-between gap-1">
           <span>
-            <span className="font-display italic">briefing</span> · Tor-, Punkt-
-            und Run-Modelle für Fußball, NHL, NBA, MLB
+            <span className="font-display italic">ThePredicter</span> · Tor-,
+            Punkt- und Run-Modelle für Fußball, NHL, NBA, MLB
           </span>
           <span className="hidden sm:inline">
             Daten: OpenLigaDB · ESPN · NHL · MLB Stats API

@@ -13,8 +13,8 @@ interface Props {
  */
 const TONE: Record<ConfidenceLabel, string> = {
   HIGH: 'bg-pos',
-  MEDIUM: 'bg-signal',
-  LOW: 'bg-paper-quiet',
+  MEDIUM: 'bg-warn',
+  LOW: 'bg-text-quiet',
 }
 
 const TEXT: Record<ConfidenceLabel, string> = {
@@ -27,10 +27,10 @@ export default function ConfidenceBadge({ label, score }: Props) {
   return (
     <span className="inline-flex items-center gap-1.5">
       <span className={clsx('w-1.5 h-1.5 rounded-full shrink-0', TONE[label])} />
-      <span className="smallcaps text-[10px] text-paper-dim">
+      <span className="smallcaps text-[10px] text-text-dim">
         {TEXT[label]}
         {score !== undefined && (
-          <span className="font-mono text-paper-mute ml-1.5 normal-case tracking-normal">
+          <span className="font-mono text-text-mute ml-1.5 normal-case tracking-normal">
             {Math.round(score * 100)}
           </span>
         )}

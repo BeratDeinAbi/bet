@@ -23,14 +23,14 @@ interface Props {
  */
 
 const LEAGUE_COLORS: Record<string, string> = {
-  BL1: '#d97757',
-  BL2: '#7a9e6e',
-  PL: '#9e6ed4',
-  PD: '#d9a25a',
-  SSL: '#c75a5a',
-  NHL: '#9bb7d4',
-  NBA: '#d97757',
-  MLB: '#7a9e6e',
+  BL1: '#2d7a3e',  // Bundesliga — accent green
+  BL2: '#5b8754',  // 2. BL — heller grün
+  PL:  '#6b21a8',  // Premier League — purple
+  PD:  '#b45309',  // La Liga — burnt orange
+  SSL: '#c2410c',  // Süper Lig — red
+  NHL: '#1e40af',  // NHL — deep blue
+  NBA: '#b91c1c',  // NBA — basketball red
+  MLB: '#0f766e',  // MLB — teal
 }
 
 function formatTime(iso: string): string {
@@ -64,7 +64,7 @@ export default function MatchCard({ prediction: p }: Props) {
   const isBasketball = p.sport === 'basketball'
   const isBaseball = p.sport === 'baseball'
   const isHockey = p.sport === 'hockey'
-  const lc = LEAGUE_COLORS[p.league] ?? '#d97757'
+  const lc = LEAGUE_COLORS[p.league] ?? '#2d7a3e'
 
   const totalLabel = isBasketball
     ? 'Erwartete Punkte'
@@ -77,7 +77,7 @@ export default function MatchCard({ prediction: p }: Props) {
     : `${p.expected_home_goals.toFixed(1)}–${p.expected_away_goals.toFixed(1)}`
 
   return (
-    <article className="group">
+    <article className="card p-5 group hover:border-canvas-border transition-colors">
       {/* ────────────────────────────────────────────────
           Eyebrow: Liga-Marker + Anstoßzeit + Confidence
           ──────────────────────────────────────────────── */}
@@ -138,22 +138,22 @@ export default function MatchCard({ prediction: p }: Props) {
             <>
               <ProbBar label="Over 210.5" probability={getExtra(p, 'prob_over_210_5') ?? 0} />
               <ProbBar label="Over 220.5" probability={getExtra(p, 'prob_over_220_5') ?? 0} />
-              <ProbBar label="Over 230.5" probability={getExtra(p, 'prob_over_230_5') ?? 0} color="#7a9e6e" />
-              <ProbBar label="Under 220.5" probability={getExtra(p, 'prob_under_220_5') ?? 0} color="#9bb7d4" />
+              <ProbBar label="Over 230.5" probability={getExtra(p, 'prob_over_230_5') ?? 0} color="#3fa356" />
+              <ProbBar label="Under 220.5" probability={getExtra(p, 'prob_under_220_5') ?? 0} color="#0369a1" />
             </>
           ) : isBaseball ? (
             <>
               <ProbBar label="Over 7.5" probability={getExtra(p, 'prob_over_7_5') ?? 0} />
               <ProbBar label="Over 8.5" probability={getExtra(p, 'prob_over_8_5') ?? 0} />
-              <ProbBar label="Over 9.5" probability={getExtra(p, 'prob_over_9_5') ?? 0} color="#7a9e6e" />
-              <ProbBar label="Under 8.5" probability={getExtra(p, 'prob_under_8_5') ?? 0} color="#9bb7d4" />
+              <ProbBar label="Over 9.5" probability={getExtra(p, 'prob_over_9_5') ?? 0} color="#3fa356" />
+              <ProbBar label="Under 8.5" probability={getExtra(p, 'prob_under_8_5') ?? 0} color="#0369a1" />
             </>
           ) : (
             <>
               <ProbBar label="Over 1.5" probability={p.prob_over_1_5} />
               <ProbBar label="Over 2.5" probability={p.prob_over_2_5} />
-              <ProbBar label="Over 3.5" probability={p.prob_over_3_5} color="#7a9e6e" />
-              <ProbBar label="Under 2.5" probability={p.prob_under_2_5} color="#9bb7d4" />
+              <ProbBar label="Over 3.5" probability={p.prob_over_3_5} color="#3fa356" />
+              <ProbBar label="Under 2.5" probability={p.prob_under_2_5} color="#0369a1" />
             </>
           )}
         </div>
@@ -170,7 +170,7 @@ export default function MatchCard({ prediction: p }: Props) {
               value={p.expected_goals_h1!.toFixed(2)}
               bars={[
                 { label: 'Over 0.5', prob: p.prob_over_0_5_h1 ?? 0 },
-                { label: 'Over 1.5', prob: p.prob_over_1_5_h1 ?? 0, color: '#9bb7d4' },
+                { label: 'Over 1.5', prob: p.prob_over_1_5_h1 ?? 0, color: '#0369a1' },
               ]}
             />
             <SegmentBlock
@@ -178,7 +178,7 @@ export default function MatchCard({ prediction: p }: Props) {
               value={p.expected_goals_h2!.toFixed(2)}
               bars={[
                 { label: 'Over 0.5', prob: p.prob_over_0_5_h2 ?? 0 },
-                { label: 'Over 1.5', prob: p.prob_over_1_5_h2 ?? 0, color: '#9bb7d4' },
+                { label: 'Over 1.5', prob: p.prob_over_1_5_h2 ?? 0, color: '#0369a1' },
               ]}
             />
           </div>
@@ -202,7 +202,7 @@ export default function MatchCard({ prediction: p }: Props) {
                 value={(exp ?? 0).toFixed(2)}
                 bars={[
                   { label: 'Over 0.5', prob: o05 ?? 0 },
-                  { label: 'Over 1.5', prob: o15 ?? 0, color: '#9bb7d4' },
+                  { label: 'Over 1.5', prob: o15 ?? 0, color: '#0369a1' },
                 ]}
               />
             ))}
@@ -226,7 +226,7 @@ export default function MatchCard({ prediction: p }: Props) {
             </div>
             <ProbBar label="Over 3.5" probability={getExtra(p, 'prob_over_3_5_f5') ?? 0} />
             <ProbBar label="Over 4.5" probability={getExtra(p, 'prob_over_4_5_f5') ?? 0} />
-            <ProbBar label="Over 5.5" probability={getExtra(p, 'prob_over_5_5_f5') ?? 0} color="#9bb7d4" />
+            <ProbBar label="Over 5.5" probability={getExtra(p, 'prob_over_5_5_f5') ?? 0} color="#0369a1" />
           </div>
         </Section>
       )}
@@ -257,7 +257,7 @@ export default function MatchCard({ prediction: p }: Props) {
                           key={line}
                           label={`Over ${line}`}
                           probability={prob}
-                          color={i === 0 ? '#d97757' : '#9bb7d4'}
+                          color={i === 0 ? '#2d7a3e' : '#0369a1'}
                         />
                       ))
                     ) : (
@@ -286,7 +286,7 @@ export default function MatchCard({ prediction: p }: Props) {
         )}
         <Link
           to={`/match/${p.match_id}`}
-          className="text-[12px] text-paper-mute hover:text-signal transition-colors underline-offset-4 hover:underline decoration-signal/60"
+          className="text-[12px] text-text-mute hover:text-accent transition-colors underline-offset-4 hover:underline decoration-accent/60"
         >
           Detail-Analyse →
         </Link>

@@ -1,50 +1,21 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle } from 'lucide-react'
-import clsx from 'clsx'
 import { api } from '../api/client'
 import MatchCard from '../components/MatchCard'
-import PastResultsSidebar from '../components/PastResultsSidebar'
-
-/**
- * Dashboard — Editorial-Layout.
- *
- * Hierarchie:
- *  1. Datums-Eyebrow (klein, smallcaps)
- *  2. Headline „Heutige Prognosen" als Serif
- *  3. Lead-Zeile mit Anzahl Spiele/Prognosen
- *  4. Filter-Bar als ruhige Inline-Liste, nicht als Tab-Border-Bottom
- *  5. Match-Grid 2-spaltig auf Desktop (großzügiger als 3-spaltig)
- *
- * Bewusste Entscheidung: keine Emoji-Liga-Tags mehr.  Die Liga steht
- * als reiner Text-Tag in den Karten — Emojis sehen nach „AI-cute" aus.
- */
-
-const CATEGORIES = [
-  { league: '', sport: '', label: 'Alles' },
-  { league: 'BL1', sport: 'football', label: 'Bundesliga' },
-  { league: 'BL2', sport: 'football', label: '2. Bundesliga' },
-  { league: 'PL', sport: 'football', label: 'Premier League' },
-  { league: 'PD', sport: 'football', label: 'La Liga' },
-  { league: 'SSL', sport: 'football', label: 'Süper Lig' },
-  { league: 'NHL', sport: 'hockey', label: 'NHL' },
-  { league: 'NBA', sport: 'basketball', label: 'NBA' },
-  { league: 'MLB', sport: 'baseball', label: 'MLB' },
-]
+import SportSidebar, { type SportSelection } from '../components/SportSidebar'
 
 export default function Dashboard() {
-  const [selected, setSelected] = useState('')
+  const [selected, setSelected] = useState<SportSelection>({ league: '', sport: '' })
   const queryClient = useQueryClient()
 
-  const active = CATEGORIES.find(c => c.league === selected) ?? CATEGORIES[0]
-
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['predictions', 'today', selected],
-    queryFn: () =>
-      api.predictions.today({
-        sport: active.sport || undefined,
-        league: active.league || undefined,
-      }),
+  // Wir laden immer ALLE Predictions, filtern client-seitig.  Das ist
+  // billiger als pro Filter-Klick einen Server-Round-Trip — unter 200
+  // Karten ist React schnell genug.  Ausserdem brauchen wir die Counts
+  // pro Liga für die Sidebar.
+  const { data: allPredictions, isLoading, isError } = useQuery({
+    queryKey: ['predictions', 'today', 'all'],
+    queryFn: () => api.predictions.today(),
   })
 
   const seedMutation = useMutation({
@@ -52,13 +23,33 @@ export default function Dashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['predictions'] })
       queryClient.invalidateQueries({ queryKey: ['health'] })
+      queryClient.invalidateQueries({ queryKey: ['backtests'] })
     },
   })
 
   const refreshMutation = useMutation({
     mutationFn: api.admin.refresh,
-    onSuccess: () => setTimeout(() => refetch(), 2000),
+    onSuccess: () => setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: ['predictions'] })
+    }, 2000),
   })
+
+  // Counts pro Liga + Total — für die Sidebar
+  const counts = useMemo(() => {
+    const out: Record<string, number> = { __total: 0 }
+    if (!allPredictions) return out
+    for (const p of allPredictions) {
+      out.__total++
+      out[p.league] = (out[p.league] ?? 0) + 1
+    }
+    return out
+  }, [allPredictions])
+
+  const filteredPredictions = useMemo(() => {
+    if (!allPredictions) return []
+    if (!selected.league) return allPredictions
+    return allPredictions.filter(p => p.league === selected.league)
+  }, [allPredictions, selected.league])
 
   const now = new Date()
   const dateLong = now.toLocaleDateString('de-DE', {
@@ -68,127 +59,118 @@ export default function Dashboard() {
   })
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-x-12 gap-y-10">
-      <div className="space-y-12 min-w-0">
-      {/* ────────  Eyebrow + Headline  ──────── */}
-      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
-        <div>
-          <p className="smallcaps text-paper-mute text-[11px] mb-2">
-            {dateLong}
-          </p>
-          <h1 className="font-display font-medium text-paper text-[44px] sm:text-[56px] leading-[0.95] tracking-tighter2">
-            Heutige <span className="italic font-normal">Prognosen</span>.
-          </h1>
-          <p className="text-paper-mute text-[14px] mt-3 max-w-xl">
-            {data && data.length > 0
-              ? `${data.length} Spiele in den nächsten 36 Stunden — Tor-, Punkt- und Run-Modelle, kalibriert mit Time-Decay und Liga-Priors.`
-              : 'Tor-, Punkt- und Run-Modelle für die nächsten 36 Stunden.'}
-          </p>
-        </div>
+    <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-x-10 gap-y-6">
+      {/* ───────  Linke Sport-Sidebar  ─────── */}
+      <aside className="lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 -mr-2">
+        <SportSidebar
+          selected={selected}
+          onChange={setSelected}
+          counts={counts}
+        />
+      </aside>
 
-        <div className="flex items-center gap-5 text-[13px] shrink-0 mt-2">
-          <button
-            onClick={() => seedMutation.mutate()}
-            disabled={seedMutation.isPending}
-            className="text-paper-mute hover:text-paper transition-colors disabled:opacity-40 underline-offset-4 hover:underline decoration-signal/60"
-          >
-            {seedMutation.isPending ? 'Lade…' : 'Daten laden'}
-          </button>
-          <button
-            onClick={() => refreshMutation.mutate()}
-            disabled={refreshMutation.isPending}
-            className="text-paper-mute hover:text-paper transition-colors disabled:opacity-40 underline-offset-4 hover:underline decoration-signal/60"
-          >
-            {refreshMutation.isPending ? 'Aktualisiere…' : 'Aktualisieren'}
-          </button>
-        </div>
-      </header>
-
-      {seedMutation.data && (
-        <div className="rule pt-3 text-[12px] text-paper-mute">
-          Geladen: <span className="text-paper font-mono">{seedMutation.data.matches_ingested}</span>{' '}
-          Spiele ·{' '}
-          <span className="text-paper font-mono">
-            {seedMutation.data.predictions_generated}
-          </span>{' '}
-          Prognosen
-        </div>
-      )}
-
-      {/* ────────  Filter-Bar  ──────── */}
-      <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 -mt-4 pb-1 border-b border-ink-line">
-        {CATEGORIES.map(c => {
-          const isActive = selected === c.league
-          return (
-            <button
-              key={c.league || 'all'}
-              onClick={() => setSelected(c.league)}
-              className={clsx(
-                'text-[13px] tracking-tight transition-colors pb-2 -mb-[1px] relative',
-                isActive
-                  ? 'text-paper'
-                  : 'text-paper-quiet hover:text-paper-dim',
-              )}
-            >
-              {c.label}
-              {isActive && (
-                <span className="absolute -bottom-[1px] left-0 right-0 h-px bg-signal" />
-              )}
-            </button>
-          )
-        })}
-      </nav>
-
-      {/* ────────  Body  ──────── */}
-      {isLoading && <Skeletons />}
-
-      {isError && (
-        <div className="flex flex-col items-start gap-3 py-12 max-w-md">
-          <AlertCircle className="w-5 h-5 text-neg" />
+      {/* ───────  Hauptbereich  ─────── */}
+      <div className="space-y-8 min-w-0">
+        <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
-            <p className="font-display font-medium text-paper text-lg">
-              Backend nicht erreichbar.
+            <p className="smallcaps text-text-mute text-[11px] mb-1.5">
+              {dateLong}
             </p>
-            <p className="text-paper-mute text-[13px] mt-1.5">
-              Starte das API in einem Terminal:
+            <h1 className="font-display font-medium text-text text-[36px] sm:text-[44px] leading-[0.95] tracking-tighter2">
+              Heutige <span className="italic font-normal text-accent">Prognosen</span>.
+            </h1>
+            <p className="text-text-mute text-[14px] mt-2 max-w-xl">
+              {filteredPredictions.length > 0
+                ? `${filteredPredictions.length} Spiele in den nächsten 36 Stunden — kalibriert mit Time-Decay und Liga-Priors.`
+                : 'Tor-, Punkt- und Run-Modelle für die nächsten 36 Stunden.'}
             </p>
-            <code className="block mt-2 text-[12px] font-mono text-signal-high">
-              cd backend && uvicorn main:app --reload
-            </code>
           </div>
-        </div>
-      )}
 
-      {!isLoading && !isError && data?.length === 0 && (
-        <div className="py-12 max-w-md">
-          <p className="font-display text-paper-dim text-lg italic">
-            Keine Prognosen vorhanden.
-          </p>
-          <p className="text-paper-mute text-[13px] mt-1.5">
-            Klick auf{' '}
+          <div className="flex items-center gap-4 text-[13px] shrink-0">
             <button
               onClick={() => seedMutation.mutate()}
-              className="text-signal underline underline-offset-4 hover:text-signal-high"
+              disabled={seedMutation.isPending}
+              className="text-text-mute hover:text-text transition-colors disabled:opacity-40 underline-offset-4 hover:underline decoration-accent/60"
             >
-              Daten laden
-            </button>{' '}
-            um Spiele und Modelle aufzubauen.
-          </p>
-        </div>
-      )}
+              {seedMutation.isPending ? 'Lade…' : 'Daten laden'}
+            </button>
+            <button
+              onClick={() => refreshMutation.mutate()}
+              disabled={refreshMutation.isPending}
+              className="text-text-mute hover:text-text transition-colors disabled:opacity-40 underline-offset-4 hover:underline decoration-accent/60"
+            >
+              {refreshMutation.isPending ? 'Aktualisiere…' : 'Aktualisieren'}
+            </button>
+          </div>
+        </header>
 
-      {data && data.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-10">
-          {data.map(pred => (
-            <MatchCard key={pred.id} prediction={pred} />
-          ))}
-        </div>
-      )}
-      </div>
+        {seedMutation.data && (
+          <div className="rule pt-3 text-[12px] text-text-mute">
+            Geladen:{' '}
+            <span className="text-text font-mono">
+              {seedMutation.data.matches_ingested}
+            </span>{' '}
+            Spiele ·{' '}
+            <span className="text-text font-mono">
+              {seedMutation.data.predictions_generated}
+            </span>{' '}
+            Prognosen
+          </div>
+        )}
 
-      {/* Sidebar — Vergangene Spiele + Backtest-Trefferquote */}
-      <div className="xl:sticky xl:top-6 xl:self-start xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">
-        <PastResultsSidebar />
+        {/* States */}
+        {isLoading && <Skeletons />}
+
+        {isError && (
+          <div className="card p-6 max-w-md">
+            <div className="flex flex-col items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-neg" />
+              <div>
+                <p className="font-display font-medium text-text text-lg">
+                  Backend nicht erreichbar.
+                </p>
+                <p className="text-text-mute text-[13px] mt-1.5">
+                  Starte das API in einem Terminal:
+                </p>
+                <code className="block mt-2 text-[12px] font-mono text-accent-dim bg-canvas-2 px-2 py-1 rounded">
+                  cd backend && uvicorn main:app --reload
+                </code>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!isLoading && !isError && filteredPredictions.length === 0 && (
+          <div className="card p-8 max-w-md">
+            <p className="font-display text-text-dim text-lg italic">
+              {selected.league
+                ? `Keine Prognosen für ${selected.league}.`
+                : 'Keine Prognosen vorhanden.'}
+            </p>
+            <p className="text-text-mute text-[13px] mt-2">
+              {selected.league
+                ? 'Wähle eine andere Liga oder lade Daten neu.'
+                : 'Klick auf '}
+              {!selected.league && (
+                <button
+                  onClick={() => seedMutation.mutate()}
+                  className="text-accent underline underline-offset-4 hover:text-accent-bright"
+                >
+                  Daten laden
+                </button>
+              )}
+              {!selected.league && ' um Spiele und Modelle aufzubauen.'}
+            </p>
+          </div>
+        )}
+
+        {filteredPredictions.length > 0 && (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-6 gap-y-8">
+            {filteredPredictions.map(pred => (
+              <MatchCard key={pred.id} prediction={pred} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -196,17 +178,17 @@ export default function Dashboard() {
 
 function Skeletons() {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-10">
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-6 gap-y-8">
       {[0, 1, 2, 3].map(i => (
-        <div key={i} className="space-y-4 animate-pulse">
-          <div className="h-3 w-20 bg-ink-2 rounded" />
-          <div className="h-6 w-3/5 bg-ink-2 rounded" />
-          <div className="h-6 w-2/5 bg-ink-2 rounded" />
+        <div key={i} className="card p-5 space-y-4 animate-pulse">
+          <div className="h-3 w-20 bg-canvas-3 rounded" />
+          <div className="h-6 w-3/5 bg-canvas-3 rounded" />
+          <div className="h-6 w-2/5 bg-canvas-3 rounded" />
           <div className="rule pt-4 grid grid-cols-2 gap-3">
-            <div className="h-2 bg-ink-2 rounded" />
-            <div className="h-2 bg-ink-2 rounded" />
-            <div className="h-2 bg-ink-2 rounded" />
-            <div className="h-2 bg-ink-2 rounded" />
+            <div className="h-2 bg-canvas-3 rounded" />
+            <div className="h-2 bg-canvas-3 rounded" />
+            <div className="h-2 bg-canvas-3 rounded" />
+            <div className="h-2 bg-canvas-3 rounded" />
           </div>
         </div>
       ))}

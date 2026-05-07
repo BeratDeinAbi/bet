@@ -38,7 +38,7 @@ export default function MatchDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20 gap-2 text-gray-500">
+      <div className="flex items-center justify-center py-20 gap-2 text-text-mute">
         <Loader2 className="w-5 h-5 animate-spin" />
         Lade Match-Details...
       </div>
@@ -49,7 +49,7 @@ export default function MatchDetailPage() {
     return (
       <div className="flex flex-col items-center gap-3 py-16">
         <AlertCircle className="w-10 h-10 text-accent-red opacity-60" />
-        <p className="text-white">Prognose nicht gefunden</p>
+        <p className="text-text">Prognose nicht gefunden</p>
         <Link to="/" className="text-accent-blue text-sm hover:underline">Zurück zum Dashboard</Link>
       </div>
     )
@@ -113,7 +113,7 @@ export default function MatchDetailPage() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <Link to="/" className="flex items-center gap-1.5 text-gray-500 hover:text-white text-sm mb-6 transition-colors">
+      <Link to="/" className="flex items-center gap-1.5 text-text-mute hover:text-text text-sm mb-6 transition-colors">
         <ArrowLeft className="w-4 h-4" />
         Zurück
       </Link>
@@ -122,8 +122,8 @@ export default function MatchDetailPage() {
       <div className="card mb-5 p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-gray-500 text-xs">{pred.league} · {SPORT_ICON[pred.sport] ?? ''}</p>
-            <p className="text-gray-400 text-xs mt-0.5">
+            <p className="text-text-mute text-xs">{pred.league} · {SPORT_ICON[pred.sport] ?? ''}</p>
+            <p className="text-text-dim text-xs mt-0.5">
               {new Date(pred.kickoff_time).toLocaleString('de-DE')}
             </p>
           </div>
@@ -132,23 +132,23 @@ export default function MatchDetailPage() {
 
         <div className="flex items-center justify-between">
           <div className="flex-1">
-            <p className="font-display font-bold text-white text-xl">{pred.home_team}</p>
-            <p className="text-gray-500 text-sm mt-1">{teamMetricLabel}: <span className="text-white font-semibold">{homeValue.toFixed(isBasketball ? 1 : 2)}</span></p>
+            <p className="font-display font-bold text-text text-xl">{pred.home_team}</p>
+            <p className="text-text-mute text-sm mt-1">{teamMetricLabel}: <span className="text-text font-semibold">{homeValue.toFixed(isBasketball ? 1 : 2)}</span></p>
           </div>
           <div className="text-center px-6">
             <p className="font-display font-bold text-3xl text-accent-green">{totalValue.toFixed(isBasketball ? 1 : 2)}</p>
-            <p className="text-gray-600 text-xs">{totalLabel}</p>
+            <p className="text-text-quiet text-xs">{totalLabel}</p>
           </div>
           <div className="flex-1 text-right">
-            <p className="font-display font-bold text-white text-xl">{pred.away_team}</p>
-            <p className="text-gray-500 text-sm mt-1">{teamMetricLabel}: <span className="text-white font-semibold">{awayValue.toFixed(isBasketball ? 1 : 2)}</span></p>
+            <p className="font-display font-bold text-text text-xl">{pred.away_team}</p>
+            <p className="text-text-mute text-sm mt-1">{teamMetricLabel}: <span className="text-text font-semibold">{awayValue.toFixed(isBasketball ? 1 : 2)}</span></p>
           </div>
         </div>
       </div>
 
       {/* Full Game O/U */}
       <div className="card mb-5 p-5">
-        <h3 className="font-display font-semibold text-white mb-4">
+        <h3 className="font-display font-semibold text-text mb-4">
           {isBasketball ? 'Total Punkte' : isBaseball ? 'Total Runs' : 'Gesamttore'} Over/Under
         </h3>
         <div className="space-y-2.5">
@@ -158,7 +158,7 @@ export default function MatchDetailPage() {
               <ProbBar label="Over 1.5" probability={pred.prob_over_1_5} color="#60a5fa" />
               <ProbBar label="Over 2.5" probability={pred.prob_over_2_5} color="#a78bfa" />
               <ProbBar label="Over 3.5" probability={pred.prob_over_3_5} color="#fbbf24" />
-              <div className="border-t border-surface-border pt-2.5 space-y-2">
+              <div className="border-t border-canvas-line pt-2.5 space-y-2">
                 <ProbBar label="Under 1.5" probability={pred.prob_under_1_5} color="#f87171" />
                 <ProbBar label="Under 2.5" probability={pred.prob_under_2_5} color="#f87171" />
               </div>
@@ -183,7 +183,7 @@ export default function MatchDetailPage() {
       {isFootball && pred.expected_goals_h1 !== undefined && (
         <div className="grid grid-cols-2 gap-4 mb-5">
           <div className="card p-5">
-            <h3 className="font-display font-semibold text-white mb-3">1. Halbzeit</h3>
+            <h3 className="font-display font-semibold text-text mb-3">1. Halbzeit</h3>
             <p className="font-display font-bold text-accent-green text-2xl mb-3">{pred.expected_goals_h1!.toFixed(2)}</p>
             <div className="space-y-2">
               <ProbBar label="Over 0.5 H1" probability={pred.prob_over_0_5_h1 ?? 0} />
@@ -191,7 +191,7 @@ export default function MatchDetailPage() {
             </div>
           </div>
           <div className="card p-5">
-            <h3 className="font-display font-semibold text-white mb-3">2. Halbzeit</h3>
+            <h3 className="font-display font-semibold text-text mb-3">2. Halbzeit</h3>
             <p className="font-display font-bold text-accent-green text-2xl mb-3">{pred.expected_goals_h2!.toFixed(2)}</p>
             <div className="space-y-2">
               <ProbBar label="Over 0.5 H2" probability={pred.prob_over_0_5_h2 ?? 0} />
@@ -210,7 +210,7 @@ export default function MatchDetailPage() {
             { label: 'Periode 3', exp: pred.expected_goals_p3, o05: pred.prob_over_0_5_p3, o15: pred.prob_over_1_5_p3 },
           ].map(({ label, exp, o05, o15 }) => (
             <div key={label} className="card p-5">
-              <h3 className="font-display font-semibold text-white mb-2 text-sm">{label}</h3>
+              <h3 className="font-display font-semibold text-text mb-2 text-sm">{label}</h3>
               <p className="font-display font-bold text-accent-green text-2xl mb-3">{(exp ?? 0).toFixed(2)}</p>
               <div className="space-y-2">
                 <ProbBar label="O 0.5" probability={o05 ?? 0} />
@@ -226,7 +226,7 @@ export default function MatchDetailPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
           {quarterData.map(({ label, exp, over55, over60 }) => (
             <div key={label} className="card p-4">
-              <h3 className="font-display font-semibold text-white mb-2 text-sm">{label}</h3>
+              <h3 className="font-display font-semibold text-text mb-2 text-sm">{label}</h3>
               <p className="font-display font-bold text-accent-green text-xl mb-3">{exp.toFixed(1)}</p>
               <div className="space-y-2">
                 {over55 !== undefined && <ProbBar label="O 55.5" probability={over55} />}
@@ -241,7 +241,7 @@ export default function MatchDetailPage() {
       {isBaseball && f5Exp !== undefined && (
         <div className="card mb-5 p-5">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-display font-semibold text-white">Erste 5 Innings (F5)</h3>
+            <h3 className="font-display font-semibold text-text">Erste 5 Innings (F5)</h3>
             <p className="font-display font-bold text-accent-green text-2xl">{f5Exp.toFixed(2)}</p>
           </div>
           <div className="grid grid-cols-3 gap-3">
@@ -257,10 +257,10 @@ export default function MatchDetailPage() {
         <div className="card mb-5 p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-display font-semibold text-white">Inning-Verteilung</h3>
-              <p className="text-gray-500 text-xs mt-0.5">Wo werden die Runs erwartet?</p>
+              <h3 className="font-display font-semibold text-text">Inning-Verteilung</h3>
+              <p className="text-text-mute text-xs mt-0.5">Wo werden die Runs erwartet?</p>
             </div>
-            <p className="text-[10px] text-gray-600 uppercase tracking-widest">9 Innings</p>
+            <p className="text-[10px] text-text-quiet uppercase tracking-widest">9 Innings</p>
           </div>
 
           {/* Heatmap-Bar */}
@@ -272,7 +272,7 @@ export default function MatchDetailPage() {
                 const isPeak = pct === maxPct
                 return (
                   <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1">
-                    <span className="text-[9px] text-gray-500 tabular-nums font-semibold">{pct.toFixed(1)}</span>
+                    <span className="text-[9px] text-text-mute tabular-nums font-semibold">{pct.toFixed(1)}</span>
                     <div
                       className="w-full rounded-t transition-all"
                       style={{
@@ -287,7 +287,7 @@ export default function MatchDetailPage() {
             </div>
             <div className="flex gap-1 mt-2">
               {inningPct.map((_, i) => (
-                <div key={i} className="flex-1 text-center text-[10px] text-gray-500 font-semibold">
+                <div key={i} className="flex-1 text-center text-[10px] text-text-mute font-semibold">
                   {i + 1}
                 </div>
               ))}
@@ -295,8 +295,8 @@ export default function MatchDetailPage() {
           </div>
 
           {/* Tabellen-Detail */}
-          <div className="space-y-1.5 border-t border-surface-border pt-4">
-            <div className="grid grid-cols-12 gap-2 text-[10px] text-gray-600 uppercase tracking-widest font-semibold pb-1">
+          <div className="space-y-1.5 border-t border-canvas-line pt-4">
+            <div className="grid grid-cols-12 gap-2 text-[10px] text-text-quiet uppercase tracking-widest font-semibold pb-1">
               <span className="col-span-2">Inning</span>
               <span className="col-span-3 text-right">Runs Erw.</span>
               <span className="col-span-3 text-right">% Anteil</span>
@@ -304,9 +304,9 @@ export default function MatchDetailPage() {
             </div>
             {inningRuns.map((runs, i) => (
               <div key={i} className="grid grid-cols-12 gap-2 text-xs items-center">
-                <span className="col-span-2 text-gray-400 font-semibold tabular-nums">#{i + 1}</span>
-                <span className="col-span-3 text-right text-white tabular-nums">{runs.toFixed(2)}</span>
-                <span className="col-span-3 text-right text-gray-500 tabular-nums">{inningPct[i].toFixed(1)}%</span>
+                <span className="col-span-2 text-text-dim font-semibold tabular-nums">#{i + 1}</span>
+                <span className="col-span-3 text-right text-text tabular-nums">{runs.toFixed(2)}</span>
+                <span className="col-span-3 text-right text-text-mute tabular-nums">{inningPct[i].toFixed(1)}%</span>
                 <span className="col-span-4 text-right">
                   <span className="inline-block w-16">
                     <ProbBar label="" probability={inningOver05[i]} color="#8eff71" />
@@ -316,7 +316,7 @@ export default function MatchDetailPage() {
             ))}
           </div>
 
-          <p className="text-gray-600 text-[11px] leading-relaxed mt-4 border-t border-surface-border pt-3">
+          <p className="text-text-quiet text-[11px] leading-relaxed mt-4 border-t border-canvas-line pt-3">
             Inning 1 hat höhere Scoring-Erwartung (Top-of-Order vs. Starter), Innings 7–8 wegen Bullpen-Wechsel ebenfalls erhöht.
             Empirisch über 5 MLB-Saisons gemittelt.
           </p>
@@ -326,28 +326,28 @@ export default function MatchDetailPage() {
       {/* Park-Faktor / Pitcher (MLB) */}
       {isBaseball && (getEx(pred, 'park_factor') !== undefined || getEx(pred, 'pitcher_factor_home') !== undefined) && (
         <div className="card mb-5 p-5">
-          <h3 className="font-display font-semibold text-white mb-3">MLB-Faktoren</h3>
+          <h3 className="font-display font-semibold text-text mb-3">MLB-Faktoren</h3>
           <div className="grid grid-cols-3 gap-4">
             {getEx(pred, 'park_factor') !== undefined && (
               <div>
-                <p className="text-gray-500 text-xs mb-1">Park-Faktor</p>
-                <p className="font-display font-bold text-white text-lg tabular-nums">
+                <p className="text-text-mute text-xs mb-1">Park-Faktor</p>
+                <p className="font-display font-bold text-text text-lg tabular-nums">
                   ×{getEx(pred, 'park_factor')!.toFixed(2)}
                 </p>
               </div>
             )}
             {getEx(pred, 'pitcher_factor_home') !== undefined && (
               <div>
-                <p className="text-gray-500 text-xs mb-1">Pitcher Heim</p>
-                <p className="font-display font-bold text-white text-lg tabular-nums">
+                <p className="text-text-mute text-xs mb-1">Pitcher Heim</p>
+                <p className="font-display font-bold text-text text-lg tabular-nums">
                   ×{getEx(pred, 'pitcher_factor_home')!.toFixed(2)}
                 </p>
               </div>
             )}
             {getEx(pred, 'pitcher_factor_away') !== undefined && (
               <div>
-                <p className="text-gray-500 text-xs mb-1">Pitcher Auswärts</p>
-                <p className="font-display font-bold text-white text-lg tabular-nums">
+                <p className="text-text-mute text-xs mb-1">Pitcher Auswärts</p>
+                <p className="font-display font-bold text-text text-lg tabular-nums">
                   ×{getEx(pred, 'pitcher_factor_away')!.toFixed(2)}
                 </p>
               </div>
@@ -359,17 +359,17 @@ export default function MatchDetailPage() {
       {/* B2B (NHL) */}
       {isHockey && (pred.extra_markets?.b2b_home || pred.extra_markets?.b2b_away) && (
         <div className="card mb-5 p-5">
-          <h3 className="font-display font-semibold text-white mb-3">Back-to-Back-Status</h3>
+          <h3 className="font-display font-semibold text-text mb-3">Back-to-Back-Status</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-gray-500 text-xs mb-1">{pred.home_team}</p>
-              <p className={`font-display font-bold text-lg ${pred.extra_markets?.b2b_home ? 'text-accent-amber' : 'text-gray-500'}`}>
+              <p className="text-text-mute text-xs mb-1">{pred.home_team}</p>
+              <p className={`font-display font-bold text-lg ${pred.extra_markets?.b2b_home ? 'text-warn' : 'text-text-mute'}`}>
                 {pred.extra_markets?.b2b_home ? 'Müde (B2B)' : 'Ausgeruht'}
               </p>
             </div>
             <div>
-              <p className="text-gray-500 text-xs mb-1">{pred.away_team}</p>
-              <p className={`font-display font-bold text-lg ${pred.extra_markets?.b2b_away ? 'text-accent-amber' : 'text-gray-500'}`}>
+              <p className="text-text-mute text-xs mb-1">{pred.away_team}</p>
+              <p className={`font-display font-bold text-lg ${pred.extra_markets?.b2b_away ? 'text-warn' : 'text-text-mute'}`}>
                 {pred.extra_markets?.b2b_away ? 'Müde (B2B)' : 'Ausgeruht'}
               </p>
             </div>
@@ -379,19 +379,19 @@ export default function MatchDetailPage() {
 
       {/* Model Info */}
       <div className="card mb-5 p-5">
-        <h3 className="font-display font-semibold text-white mb-4">Modell-Metriken</h3>
+        <h3 className="font-display font-semibold text-text mb-4">Modell-Metriken</h3>
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <p className="text-gray-500 text-xs mb-1">Konfidenz</p>
-            <p className="font-display font-bold text-white text-xl">{(pred.confidence_score * 100).toFixed(0)}%</p>
+            <p className="text-text-mute text-xs mb-1">Konfidenz</p>
+            <p className="font-display font-bold text-text text-xl">{(pred.confidence_score * 100).toFixed(0)}%</p>
           </div>
           <div>
-            <p className="text-gray-500 text-xs mb-1">Modell-Übereinstimmung</p>
-            <p className="font-display font-bold text-white text-xl">{(pred.model_agreement_score * 100).toFixed(0)}%</p>
+            <p className="text-text-mute text-xs mb-1">Modell-Übereinstimmung</p>
+            <p className="font-display font-bold text-text text-xl">{(pred.model_agreement_score * 100).toFixed(0)}%</p>
           </div>
           <div>
-            <p className="text-gray-500 text-xs mb-1">Prognose-Stabilität</p>
-            <p className="font-display font-bold text-white text-xl">{(pred.prediction_stability_score * 100).toFixed(0)}%</p>
+            <p className="text-text-mute text-xs mb-1">Prognose-Stabilität</p>
+            <p className="font-display font-bold text-text text-xl">{(pred.prediction_stability_score * 100).toFixed(0)}%</p>
           </div>
         </div>
       </div>
@@ -399,9 +399,9 @@ export default function MatchDetailPage() {
       {/* Explanation */}
       {pred.explanation && (
         <div className="card p-5">
-          <h3 className="font-display font-semibold text-white mb-2">Prognose-Erklärung</h3>
-          <p className="text-gray-400 text-sm leading-relaxed">{pred.explanation}</p>
-          <p className="text-gray-600 text-xs mt-3">
+          <h3 className="font-display font-semibold text-text mb-2">Prognose-Erklärung</h3>
+          <p className="text-text-dim text-sm leading-relaxed">{pred.explanation}</p>
+          <p className="text-text-quiet text-xs mt-3">
             {isFootball && 'Ensemble: Poisson MLE + Dixon-Coles + Elo + Rolling Form'}
             {isHockey && 'Ensemble: Poisson MLE + Elo + Rolling Form + B2B-Adjustment'}
             {isBasketball && 'Ensemble: Normal-Approximation + Pace-Adjustment + Elo'}
