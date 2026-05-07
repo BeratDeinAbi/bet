@@ -4,6 +4,7 @@ No API key required.
 """
 import requests
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from typing import List, Optional
 
@@ -75,7 +76,10 @@ class NHLProvider(BaseHockeyProvider):
         return games
 
     def get_historical_matches(self, seasons: List[str]) -> List[ProviderHistoricalMatch]:
-        historical = []
+        """Sammelt finished games und holt die Periodenscores parallel
+        (8 Worker).  Reihenfolge des Outputs ist nicht garantiert —
+        irrelevant fürs Training (Modelle sortieren intern nach kickoff)."""
+        candidates: List[dict] = []
         for season in seasons:
             data = self._get(f"schedule/season/{season}")
             if not data:
@@ -83,11 +87,23 @@ class NHLProvider(BaseHockeyProvider):
             for day in data.get("gameWeek", []):
                 for game in day.get("games", []):
                     if game.get("gameState") in ("FINAL", "OFF"):
-                        m = self._parse_game(game)
-                        # Fetch boxscore for period data
-                        game_id = game.get("id")
-                        segments = self._get_periods(game_id) if game_id else []
-                        historical.append(ProviderHistoricalMatch(**m.__dict__, segments=segments))
+                        candidates.append(game)
+
+        def _build(game: dict) -> Optional[ProviderHistoricalMatch]:
+            try:
+                m = self._parse_game(game)
+                game_id = game.get("id")
+                segments = self._get_periods(game_id) if game_id else []
+                return ProviderHistoricalMatch(**m.__dict__, segments=segments)
+            except Exception:
+                return None
+
+        historical: List[ProviderHistoricalMatch] = []
+        if candidates:
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                for result in pool.map(_build, candidates):
+                    if result is not None:
+                        historical.append(result)
         return historical
 
     def _get_periods(self, game_id: str) -> List[dict]:

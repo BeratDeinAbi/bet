@@ -32,12 +32,19 @@ def init_db():
 
 def _migrate_add_columns():
     """Light-touch SQLite migration: hängt fehlende Spalten an, ohne dass
-    Alembic gebraucht wird.  Idempotent — fügt nur hinzu was fehlt."""
+    Alembic gebraucht wird.  Idempotent — fügt nur hinzu was fehlt.
+    Race-tolerant: falls zwei Threads gleichzeitig migrieren, fängt der
+    zweite den 'duplicate column'-Fehler."""
     from sqlalchemy import inspect, text
+    from sqlalchemy.exc import OperationalError
     inspector = inspect(engine)
     if "matches" not in inspector.get_table_names():
         return
     cols = {c["name"] for c in inspector.get_columns("matches")}
-    with engine.begin() as conn:
-        if "context" not in cols:
+    if "context" in cols:
+        return
+    try:
+        with engine.begin() as conn:
             conn.execute(text("ALTER TABLE matches ADD COLUMN context JSON"))
+    except OperationalError:
+        pass  # Spalte wurde von parallelem Migrator angelegt — OK

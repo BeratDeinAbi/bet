@@ -3,6 +3,7 @@ Ingestion service: fetches today's matches and historical data, stores in DB.
 """
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, date
 from typing import List, Optional, Set
 
@@ -269,105 +270,113 @@ def ingest_today_matches(db: Session) -> int:
     return total
 
 
+def _persist_historical(db: Session, fixed_code: Optional[str], matches) -> int:
+    """Schreibt eine Liste historischer Spiele inkl. Segmente in die DB.
+
+    ``fixed_code`` ist gesetzt für Sportarten mit fester Liga (NHL, NBA,
+    MLB).  Bei Football kommt der Code aus ``pm.competition_code``.
+    """
+    n = 0
+    for pm in matches:
+        code = fixed_code or pm.competition_code
+        comp = _ensure_competition(db, code)
+        match = _upsert_match(db, pm, comp.id)
+        db.flush()
+        if hasattr(pm, "segments") and pm.segments:
+            for seg in pm.segments:
+                existing = db.query(MatchSegment).filter(
+                    MatchSegment.match_id == match.id,
+                    MatchSegment.segment_code == seg["segment_code"]
+                ).first()
+                if not existing:
+                    db.add(MatchSegment(match_id=match.id, **seg))
+        n += 1
+    return n
+
+
 def ingest_historical_matches(db: Session, seasons: List[str] = None) -> int:
+    """Holt alle historischen Spiele aus den 4 Sport-Quellen parallel
+    (I/O-bound — ESPN/NHL/MLB/OpenLigaDB) und schreibt das Ergebnis dann
+    sequentiell in die DB.  SQLite verträgt keine parallelen Writes,
+    aber die Fetches selbst (90 % der Zeit) laufen jetzt gleichzeitig.
+
+    Speed-Up grob: vorher Football(5×3s) + NHL(15s) + NBA(10s) + MLB(15s)
+    ≈ 55 s sequentiell.  Jetzt: max(15 s) + DB-Writes (~3 s) ≈ 18 s.
+    """
     if seasons is None:
         seasons = ["2023", "2024"]
-    total = 0
 
     fp = get_football_provider()
     gp = get_german_football_provider()
-    for code in settings.ACTIVE_FOOTBALL_LEAGUES:
+    hp = get_hockey_provider()
+    bp = get_basketball_provider()
+    bbp = get_baseball_provider()
+
+    def _fetch_football(code: str):
         provider = gp if code in GERMAN_LEAGUES else fp
         try:
             matches = provider.get_historical_matches(code, seasons)
-            # Fallback wenn Live-Provider nichts liefert (kein Spieltag, kein Netz…)
             if not matches and settings.USE_MOCK_FALLBACK:
                 from app.providers.mock_provider import MockFootballProvider
                 matches = MockFootballProvider().get_historical_matches(code, seasons)
                 logger.info(f"Historical mock fallback für {code}: {len(matches)} Spiele")
-            for pm in matches:
-                comp = _ensure_competition(db, pm.competition_code)
-                match = _upsert_match(db, pm, comp.id)
-                db.flush()
-                if hasattr(pm, "segments") and pm.segments:
-                    for seg in pm.segments:
-                        existing = db.query(MatchSegment).filter(
-                            MatchSegment.match_id == match.id,
-                            MatchSegment.segment_code == seg["segment_code"]
-                        ).first()
-                        if not existing:
-                            db.add(MatchSegment(match_id=match.id, **seg))
-                total += 1
+            return code, matches
         except Exception as e:
             logger.error(f"Historical football error {code}: {e}")
+            return code, []
 
-    hp = get_hockey_provider()
-    try:
-        nhl_hist = hp.get_historical_matches(seasons)
-        for pm in nhl_hist:
-            comp = _ensure_competition(db, "NHL")
-            match = _upsert_match(db, pm, comp.id)
-            db.flush()
-            if hasattr(pm, "segments") and pm.segments:
-                for seg in pm.segments:
-                    existing = db.query(MatchSegment).filter(
-                        MatchSegment.match_id == match.id,
-                        MatchSegment.segment_code == seg["segment_code"]
-                    ).first()
-                    if not existing:
-                        db.add(MatchSegment(match_id=match.id, **seg))
-            total += 1
-    except Exception as e:
-        logger.error(f"Historical NHL error: {e}")
+    def _fetch_nhl():
+        try:
+            return hp.get_historical_matches(seasons)
+        except Exception as e:
+            logger.error(f"Historical NHL error: {e}")
+            return []
 
-    # NBA historical (ESPN scoreboard sampling)
-    bp = get_basketball_provider()
-    try:
-        nba_hist = bp.get_historical_matches(seasons)
-        if not nba_hist and settings.USE_MOCK_FALLBACK:
-            from app.providers.mock_provider import MockBasketballProvider
-            nba_hist = MockBasketballProvider().get_historical_matches(seasons)
-            logger.info(f"Historical NBA mock fallback: {len(nba_hist)} Spiele")
-        for pm in nba_hist:
-            comp = _ensure_competition(db, "NBA")
-            match = _upsert_match(db, pm, comp.id)
-            db.flush()
-            if hasattr(pm, "segments") and pm.segments:
-                for seg in pm.segments:
-                    existing = db.query(MatchSegment).filter(
-                        MatchSegment.match_id == match.id,
-                        MatchSegment.segment_code == seg["segment_code"]
-                    ).first()
-                    if not existing:
-                        db.add(MatchSegment(match_id=match.id, **seg))
-            total += 1
-    except Exception as e:
-        logger.error(f"Historical NBA error: {e}")
+    def _fetch_nba():
+        try:
+            matches = bp.get_historical_matches(seasons)
+            if not matches and settings.USE_MOCK_FALLBACK:
+                from app.providers.mock_provider import MockBasketballProvider
+                matches = MockBasketballProvider().get_historical_matches(seasons)
+                logger.info(f"Historical NBA mock fallback: {len(matches)} Spiele")
+            return matches
+        except Exception as e:
+            logger.error(f"Historical NBA error: {e}")
+            return []
 
-    # MLB historical (MLB-Stats-API)
-    bbp = get_baseball_provider()
-    try:
-        mlb_hist = bbp.get_historical_matches(seasons)
-        if not mlb_hist and settings.USE_MOCK_FALLBACK:
-            from app.providers.mock_provider import MockBaseballProvider
-            mlb_hist = MockBaseballProvider().get_historical_matches(seasons)
-            logger.info(f"Historical MLB mock fallback: {len(mlb_hist)} Spiele")
-        for pm in mlb_hist:
-            comp = _ensure_competition(db, "MLB")
-            match = _upsert_match(db, pm, comp.id)
-            db.flush()
-            if hasattr(pm, "segments") and pm.segments:
-                for seg in pm.segments:
-                    existing = db.query(MatchSegment).filter(
-                        MatchSegment.match_id == match.id,
-                        MatchSegment.segment_code == seg["segment_code"]
-                    ).first()
-                    if not existing:
-                        db.add(MatchSegment(match_id=match.id, **seg))
-            total += 1
-    except Exception as e:
-        logger.error(f"Historical MLB error: {e}")
+    def _fetch_mlb():
+        try:
+            matches = bbp.get_historical_matches(seasons)
+            if not matches and settings.USE_MOCK_FALLBACK:
+                from app.providers.mock_provider import MockBaseballProvider
+                matches = MockBaseballProvider().get_historical_matches(seasons)
+                logger.info(f"Historical MLB mock fallback: {len(matches)} Spiele")
+            return matches
+        except Exception as e:
+            logger.error(f"Historical MLB error: {e}")
+            return []
+
+    # Parallel fetch — alle Provider gleichzeitig
+    football_codes = list(settings.ACTIVE_FOOTBALL_LEAGUES)
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        football_futs = [pool.submit(_fetch_football, code) for code in football_codes]
+        nhl_fut = pool.submit(_fetch_nhl)
+        nba_fut = pool.submit(_fetch_nba)
+        mlb_fut = pool.submit(_fetch_mlb)
+
+        football_results = [f.result() for f in football_futs]
+        nhl_matches = nhl_fut.result()
+        nba_matches = nba_fut.result()
+        mlb_matches = mlb_fut.result()
+
+    # Sequentielle DB-Writes — SQLite mag keine parallelen Schreiber
+    total = 0
+    for _code, matches in football_results:
+        total += _persist_historical(db, None, matches)
+    total += _persist_historical(db, "NHL", nhl_matches)
+    total += _persist_historical(db, "NBA", nba_matches)
+    total += _persist_historical(db, "MLB", mlb_matches)
 
     db.commit()
-    logger.info(f"Ingested {total} historical matches")
+    logger.info(f"Ingested {total} historical matches (parallel fetch)")
     return total

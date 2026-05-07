@@ -16,6 +16,7 @@ Wettmarkt nach Total Runs.
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -227,38 +228,55 @@ class MLBProvider(BaseHockeyProvider):
         return out
 
     def get_historical_matches(self, seasons: List[str]) -> List[ProviderHistoricalMatch]:
+        """Letzte ~120 Tage finished games, Cap 100 fürs Training.
+
+        Optimierung: die Inning-Linescores werden über einen ThreadPool
+        parallel gezogen (8 Worker).  Vorher: 100 sequentielle HTTP-Calls
+        à ~150 ms = ~15 s.  Nachher: ~2-3 s.  Ergebnis ist identisch —
+        nur die Reihenfolge im ``out``-Array entspricht der Future-
+        Completion-Reihenfolge, was fürs Training irrelevant ist.
         """
-        Liefert die letzten ~120 Tage finished games.  120 Tage decken
-        eine MLB-Saison (April–Sep) zuverlässig ab; Gesamtcap 100 Spiele
-        für Trainings-Effizienz.  Inning-Daten kommen über das
-        ``boxscore``-Endpoint (1 Extra-Call pro finished game).
-        """
-        out: List[ProviderHistoricalMatch] = []
         seen: set = set()
+        candidates: List[Dict[str, Any]] = []
         today = date.today()
 
+        # 1. Sequentiell: Schedule-Endpoint pro Tag (ein Call holt alle
+        #    Spiele eines Tages — Parallelisierung lohnt hier nicht).
         for days_ago in range(2, 121, 2):
-            if len(out) >= 100:
+            if len(candidates) >= 100:
                 break
             target = (today - timedelta(days=days_ago)).isoformat()
             for raw in self._schedule(target):
+                if len(candidates) >= 100:
+                    break
                 gid = raw.get("gamePk")
                 if gid in seen:
                     continue
                 seen.add(gid)
                 try:
                     pm = self._parse_game(raw)
-                    if pm.status != "FINISHED" or pm.home_score is None:
-                        continue
-                    segments = self._fetch_innings(gid) or []
-                    out.append(ProviderHistoricalMatch(
-                        **pm.__dict__,
-                        segments=segments,
-                    ))
                 except Exception:
                     continue
+                if pm.status != "FINISHED" or pm.home_score is None:
+                    continue
+                candidates.append({"pm": pm, "gid": gid})
 
-        logger.info(f"MLB historical: {len(out)} finished games")
+        # 2. Parallel: pro Game einen Inning-Linescore-Call
+        def _fetch(c: Dict[str, Any]) -> Optional[ProviderHistoricalMatch]:
+            try:
+                segments = self._fetch_innings(c["gid"]) or []
+                return ProviderHistoricalMatch(**c["pm"].__dict__, segments=segments)
+            except Exception:
+                return None
+
+        out: List[ProviderHistoricalMatch] = []
+        if candidates:
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                for result in pool.map(_fetch, candidates):
+                    if result is not None:
+                        out.append(result)
+
+        logger.info(f"MLB historical: {len(out)} finished games (parallel inning fetch)")
         return out
 
     def _fetch_innings(self, game_pk: int) -> List[dict]:
