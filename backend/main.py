@@ -66,6 +66,23 @@ async def on_startup():
     finally:
         db.close()
 
+    # Kalibrierungs-Cache aus DB laden (falls vom letzten Run vorhanden)
+    db = SessionLocal()
+    try:
+        from app.services.evaluation import reload_calibration_cache
+        reload_calibration_cache(db)
+    except Exception as e:
+        logger.warning(f"Calibration cache load failed: {e}")
+    finally:
+        db.close()
+
+    # Daily-Self-Improve-Scheduler starten (04:00 UTC)
+    try:
+        from app.services.scheduler import start_scheduler
+        start_scheduler()
+    except Exception as e:
+        logger.warning(f"Scheduler start failed: {e}")
+
     logger.info(f"Database ready. Football provider: {settings.FOOTBALL_PROVIDER}")
 
 

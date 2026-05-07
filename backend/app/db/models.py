@@ -183,3 +183,64 @@ class ProviderLog(Base):
     error_message = Column(Text, nullable=True)
     duration_ms = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class PredictionOutcome(Base):
+    """Pro Prediction die Auswertung gegen das tatsächliche Ergebnis.
+
+    Wird vom täglichen Backtest-Job angelegt sobald ein Match auf
+    FINISHED steht.  Bildet die Datenbasis für Kalibrierung und für die
+    Sidebar-Trefferquote.
+    """
+    __tablename__ = "prediction_outcomes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    prediction_id = Column(Integer, ForeignKey("predictions.id"), unique=True)
+    match_id = Column(Integer, ForeignKey("matches.id"), index=True)
+
+    # Ist-Werte (für UI + Brier-Score)
+    actual_total = Column(Float)
+    actual_home = Column(Float)
+    actual_away = Column(Float)
+    expected_total = Column(Float)
+
+    total_abs_error = Column(Float)
+    total_squared_error = Column(Float)
+
+    # Hit-Map: pro O/U-Linie ob Modell richtig lag
+    # {"over_2_5": {"prob": 0.62, "hit": true}, ...}
+    hits = Column(JSON, nullable=True)
+
+    # Wurde der primäre "Top-Pick" (höchste Confidence-Linie) richtig?
+    primary_hit = Column(Boolean, nullable=True)
+    primary_market = Column(String(50), nullable=True)
+    primary_prob = Column(Float, nullable=True)
+
+    sport = Column(String(20), index=True)
+    league = Column(String(10), index=True)
+    evaluated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    prediction = relationship("Prediction")
+    match = relationship("Match")
+
+
+class CalibrationBin(Base):
+    """Pro Sport eine empirische Kalibrierungs-Kurve.
+
+    Jede Zeile entspricht einem Wahrscheinlichkeits-Bucket (z. B. 0.6–0.7).
+    Das Modell sagt im Bucket im Schnitt ``avg_predicted_prob`` voraus —
+    tatsächlich getroffen wurde ``empirical_hit_rate``.  Bei der Vorhersage
+    werden rohe Modell-Probs durch eine monotonisierte Version dieser Tabelle
+    ersetzt (Isotonic Regression).
+    """
+    __tablename__ = "calibration_bins"
+
+    id = Column(Integer, primary_key=True, index=True)
+    sport = Column(String(20), index=True)
+    bin_lower = Column(Float)        # 0.0, 0.1, 0.2, ...
+    bin_upper = Column(Float)
+    n_predictions = Column(Integer)
+    avg_predicted_prob = Column(Float)
+    empirical_hit_rate = Column(Float)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(),
+                        onupdate=func.now())

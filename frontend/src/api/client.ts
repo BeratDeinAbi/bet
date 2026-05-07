@@ -55,5 +55,37 @@ export const api = {
   backtests: {
     summary: () => get<BacktestSummary[]>('/backtests/summary'),
     modelStatus: () => get<ModelStatus[]>('/backtests/models/status'),
+    recent: (limit = 25, sport?: string) => {
+      const qs = new URLSearchParams({ limit: String(limit) })
+      if (sport) qs.set('sport', sport)
+      return get<RecentOutcome[]>(`/backtests/recent?${qs}`)
+    },
+    accuracy: (days = 30) => get<AccuracySummary>(`/backtests/accuracy?days=${days}`),
   },
+}
+
+export interface RecentOutcome {
+  id: number
+  match_id: number
+  sport: string
+  league: string
+  home_team: string
+  away_team: string
+  kickoff_time: string | null
+  actual_home: number
+  actual_away: number
+  actual_total: number
+  expected_total: number
+  total_abs_error: number
+  primary_market: string | null
+  primary_prob: number | null
+  primary_hit: boolean | null
+}
+
+export interface AccuracySummary {
+  days: number
+  n: number
+  hit_rate: number
+  mae_total: number
+  by_sport: Record<string, { n: number; hit_rate: number; mae: number }>
 }

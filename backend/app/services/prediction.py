@@ -263,6 +263,17 @@ def predict_match(db: Session, match: Match) -> Optional[Prediction]:
     agreement = raw_preds.get("model_agreement_score", 0.5)
     confidence = round(0.5 * stability + 0.5 * agreement, 3)
 
+    # Kalibrierung anwenden — falls aus dem täglichen Backtest-Job eine
+    # CalibrationBin-Tabelle vorliegt, werden alle prob_over_*/prob_under_*-
+    # Werte durch die empirisch beobachtete Trefferquote ersetzt.  Wenn
+    # noch keine Kalibrierung existiert (frischer Start, < 30 Outcomes),
+    # bleiben die rohen Modell-Werte erhalten.
+    from app.services.evaluation import apply_calibration
+    for k in list(raw_preds.keys()):
+        if (k.startswith("prob_over_") or k.startswith("prob_under_")) \
+                and isinstance(raw_preds[k], (int, float)):
+            raw_preds[k] = round(apply_calibration(raw_preds[k], sport), 4)
+
     explanation = _generate_explanation(sport, raw_preds, home, away)
 
     # NBA + MLB haben eigene Scoring-Niveaus (200+ Punkte / 6+ Runs) —

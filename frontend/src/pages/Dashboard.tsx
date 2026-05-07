@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import clsx from 'clsx'
 import { api } from '../api/client'
 import MatchCard from '../components/MatchCard'
+import PastResultsSidebar from '../components/PastResultsSidebar'
 
 /**
  * Dashboard — Editorial-Layout.
@@ -67,7 +68,8 @@ export default function Dashboard() {
   })
 
   return (
-    <div className="space-y-12">
+    <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-x-12 gap-y-10">
+      <div className="space-y-12 min-w-0">
       {/* ────────  Eyebrow + Headline  ──────── */}
       <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
         <div>
@@ -182,6 +184,12 @@ export default function Dashboard() {
           ))}
         </div>
       )}
+      </div>
+
+      {/* Sidebar — Vergangene Spiele + Backtest-Trefferquote */}
+      <div className="xl:sticky xl:top-6 xl:self-start xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">
+        <PastResultsSidebar />
+      </div>
     </div>
   )
 }

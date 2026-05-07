@@ -41,10 +41,9 @@ def _migrate_add_columns():
     if "matches" not in inspector.get_table_names():
         return
     cols = {c["name"] for c in inspector.get_columns("matches")}
-    if "context" in cols:
-        return
-    try:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE matches ADD COLUMN context JSON"))
-    except OperationalError:
-        pass  # Spalte wurde von parallelem Migrator angelegt — OK
+    if "context" not in cols:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE matches ADD COLUMN context JSON"))
+        except OperationalError:
+            pass

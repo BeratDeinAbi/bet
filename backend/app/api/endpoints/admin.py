@@ -57,6 +57,28 @@ def train_models(background_tasks: BackgroundTasks, db: Session = Depends(get_db
     return {"status": "training started"}
 
 
+@router.post("/daily-cycle")
+def trigger_daily_cycle():
+    """Manueller Trigger des täglichen Self-Improve-Zyklus:
+    Outcomes evaluieren → Kalibrierung neu fitten → Modelle re-trainieren.
+    Läuft sonst automatisch täglich um 04:00 UTC."""
+    from app.services.scheduler import run_daily_cycle
+    return run_daily_cycle()
+
+
+@router.post("/evaluate")
+def trigger_evaluation(db: Session = Depends(get_db)):
+    """Nur die Evaluation laufen lassen (ohne Retrain) — für schnelles
+    Auffüllen der Outcome-Tabelle nach einem History-Import."""
+    from app.services.evaluation import (
+        evaluate_finished_matches, compute_calibration, reload_calibration_cache,
+    )
+    n_eval = evaluate_finished_matches(db)
+    n_bins = compute_calibration(db)
+    reload_calibration_cache(db)
+    return {"new_outcomes": n_eval, "calibration_bins": n_bins}
+
+
 @router.post("/seed")
 def seed_real_data(db: Session = Depends(get_db)):
     """

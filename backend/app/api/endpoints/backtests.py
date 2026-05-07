@@ -1,12 +1,32 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from app.db.database import get_db
 from app.schemas.prediction import BacktestSummary, ModelStatus
 from app.db.models import ModelRun
+from app.services.evaluation import recent_outcomes, accuracy_summary
 
 router = APIRouter(prefix="/backtests", tags=["backtests"])
+
+
+@router.get("/recent")
+def get_recent_outcomes(
+    limit: int = Query(25, ge=1, le=200),
+    sport: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Letzte N evaluierte Predictions — für die Sidebar."""
+    return recent_outcomes(db, limit=limit, sport=sport)
+
+
+@router.get("/accuracy")
+def get_accuracy(
+    days: int = Query(30, ge=1, le=365),
+    db: Session = Depends(get_db),
+):
+    """Trefferquote der letzten N Tage (gesamt + pro Sport)."""
+    return accuracy_summary(db, days=days)
 
 
 @router.get("/summary", response_model=List[BacktestSummary])
