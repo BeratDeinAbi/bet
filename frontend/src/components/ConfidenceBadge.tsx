@@ -6,7 +6,18 @@ interface Props {
   score?: number
 }
 
-const LABELS: Record<ConfidenceLabel, string> = {
+/**
+ * Confidence-Anzeige als kleiner Punkt + Smallcaps-Label.  Keine Pill,
+ * kein Neon — die Ampelfarbe steckt nur im 6×6-Punkt davor, das Label
+ * bleibt im Paper-Ton.
+ */
+const TONE: Record<ConfidenceLabel, string> = {
+  HIGH: 'bg-pos',
+  MEDIUM: 'bg-signal',
+  LOW: 'bg-paper-quiet',
+}
+
+const TEXT: Record<ConfidenceLabel, string> = {
   HIGH: 'Hoch',
   MEDIUM: 'Mittel',
   LOW: 'Niedrig',
@@ -14,13 +25,16 @@ const LABELS: Record<ConfidenceLabel, string> = {
 
 export default function ConfidenceBadge({ label, score }: Props) {
   return (
-    <span className={clsx(
-      'text-[10px] font-bold px-2 py-0.5 rounded tracking-wider uppercase',
-      label === 'HIGH' && 'bg-accent-green/15 text-accent-green',
-      label === 'MEDIUM' && 'bg-accent-amber/15 text-accent-amber',
-      label === 'LOW' && 'bg-white/5 text-gray-500',
-    )}>
-      {LABELS[label]}{score !== undefined ? ` · ${Math.round(score * 100)}%` : ''}
+    <span className="inline-flex items-center gap-1.5">
+      <span className={clsx('w-1.5 h-1.5 rounded-full shrink-0', TONE[label])} />
+      <span className="smallcaps text-[10px] text-paper-dim">
+        {TEXT[label]}
+        {score !== undefined && (
+          <span className="font-mono text-paper-mute ml-1.5 normal-case tracking-normal">
+            {Math.round(score * 100)}
+          </span>
+        )}
+      </span>
     </span>
   )
 }
