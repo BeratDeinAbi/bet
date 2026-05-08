@@ -84,6 +84,17 @@ export interface Prediction {
   model_agreement_score: number
   prediction_stability_score: number
   explanation: string | null
+
+  recommended_pick?: RecommendedPickInline | null
+}
+
+export interface RecommendedPickInline {
+  market: string
+  line: number
+  direction: 'over' | 'under'
+  model_probability: number
+  fair_odds: number
+  confidence_label: ConfidenceLabel
 }
 
 export interface Top3Pick {

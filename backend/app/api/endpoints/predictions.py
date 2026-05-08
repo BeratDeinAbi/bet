@@ -4,8 +4,11 @@ from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 
 from app.db.database import get_db
-from app.db.models import Match, Prediction, Competition
-from app.schemas.prediction import PredictionSchema, PredictionWithMatchSchema, Top3Response
+from app.db.models import Match, Prediction, Competition, RecommendedPick
+from app.schemas.prediction import (
+    PredictionSchema, PredictionWithMatchSchema, RecommendedPickSchema,
+    Top3Response,
+)
 from app.services.ranking import rank_top3_predictions
 
 router = APIRouter(prefix="/predictions", tags=["predictions"])
@@ -24,7 +27,25 @@ def _within_today_window(kickoff) -> bool:
     return (now - TODAY_WINDOW_PAST) <= kickoff <= (now + TODAY_WINDOW_FUTURE)
 
 
-def _enrich(pred: Prediction, match: Match) -> PredictionWithMatchSchema:
+def _pick_for(db, pred: Prediction) -> Optional[RecommendedPickSchema]:
+    rp = (
+        db.query(RecommendedPick)
+        .filter(RecommendedPick.prediction_id == pred.id)
+        .first()
+    )
+    if not rp:
+        return None
+    return RecommendedPickSchema(
+        market=rp.market,
+        line=rp.line,
+        direction=rp.direction,
+        model_probability=rp.model_probability,
+        fair_odds=rp.fair_odds,
+        confidence_label=rp.confidence_label or pred.confidence_label,
+    )
+
+
+def _enrich(db, pred: Prediction, match: Match) -> PredictionWithMatchSchema:
     return PredictionWithMatchSchema(
         **{c.name: getattr(pred, c.name) for c in pred.__table__.columns},
         sport=match.sport,
@@ -32,6 +53,7 @@ def _enrich(pred: Prediction, match: Match) -> PredictionWithMatchSchema:
         home_team=match.home_team_name,
         away_team=match.away_team_name,
         kickoff_time=match.kickoff_time,
+        recommended_pick=_pick_for(db, pred),
     )
 
 
@@ -52,7 +74,7 @@ def get_today_predictions(
     for pred in preds:
         match = pred.match
         if match and _within_today_window(match.kickoff_time):
-            result.append(_enrich(pred, match))
+            result.append(_enrich(db, pred, match))
     return result
 
 
@@ -66,4 +88,4 @@ def get_prediction_for_match(match_id: int, db: Session = Depends(get_db)):
     pred = db.query(Prediction).filter(Prediction.match_id == match_id).first()
     if not pred:
         raise HTTPException(status_code=404, detail="Prediction not found for this match")
-    return _enrich(pred, pred.match)
+    return _enrich(db, pred, pred.match)

@@ -82,12 +82,26 @@ class Top3Response(BaseModel):
     picks: List[Top3Pick]
 
 
+class RecommendedPickSchema(BaseModel):
+    """Wett-Empfehlung pro Match — faire Quote ≥ 1.25, Wahrscheinlichkeit ≥ 60 %."""
+    market: str
+    line: float
+    direction: str           # over | under
+    model_probability: float
+    fair_odds: float
+    confidence_label: str
+
+    class Config:
+        from_attributes = True
+
+
 class PredictionWithMatchSchema(PredictionSchema):
     sport: str
     league: str
     home_team: str
     away_team: str
     kickoff_time: datetime
+    recommended_pick: Optional[RecommendedPickSchema] = None
 
 
 class BacktestSummary(BaseModel):
