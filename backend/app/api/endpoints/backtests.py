@@ -6,6 +6,7 @@ from app.db.database import get_db
 from app.schemas.prediction import BacktestSummary, ModelStatus
 from app.db.models import ModelRun
 from app.services.evaluation import recent_outcomes, accuracy_summary
+from app.services.recommended import list_recommended, recommended_accuracy
 
 router = APIRouter(prefix="/backtests", tags=["backtests"])
 
@@ -27,6 +28,29 @@ def get_accuracy(
 ):
     """Trefferquote der letzten N Tage (gesamt + pro Sport)."""
     return accuracy_summary(db, days=days)
+
+
+@router.get("/recommended")
+def get_recommended_picks(
+    sport: Optional[str] = Query(None),
+    only_evaluated: bool = Query(False),
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    """Wett-Empfehlungen (faire Quote ≥ 1.25) inkl. Hit/Miss falls
+    bewertet."""
+    return list_recommended(
+        db, sport=sport, only_evaluated=only_evaluated, limit=limit,
+    )
+
+
+@router.get("/recommended/accuracy")
+def get_recommended_accuracy(
+    sport: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Wett-Trefferquote — gesamt + pro Sport."""
+    return recommended_accuracy(db, sport=sport)
 
 
 @router.get("/summary", response_model=List[BacktestSummary])

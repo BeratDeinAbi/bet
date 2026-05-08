@@ -372,6 +372,18 @@ def predict_match(db: Session, match: Match) -> Optional[Prediction]:
     db.add(pred)
     db.commit()
     db.refresh(pred)
+
+    # Recommended Pick (faire Quote ≥ 1.25) für späteres Backtesting
+    # speichern.  Best-effort: Failures werden ignoriert, die Prediction
+    # selbst ist bereits committed.
+    try:
+        from app.services.recommended import persist_recommended_pick
+        persist_recommended_pick(db, match, pred)
+        db.commit()
+    except Exception as e:
+        logger.warning(f"persist_recommended_pick failed for match {match.id}: {e}")
+        db.rollback()
+
     return pred
 
 

@@ -156,6 +156,15 @@ def evaluate_finished_matches(db: Session) -> int:
         n += 1
 
     db.commit()
+
+    # Recommended Picks gleichzeitig auswerten — sie hängen am gleichen
+    # FINISHED-Match, also liegt das hier am natürlichsten.
+    try:
+        from app.services.recommended import evaluate_recommended_picks
+        evaluate_recommended_picks(db)
+    except Exception as e:
+        logger.warning(f"evaluate_recommended_picks failed: {e}")
+
     logger.info(f"Evaluated {n} new finished matches")
     return n
 

@@ -61,7 +61,49 @@ export const api = {
       return get<RecentOutcome[]>(`/backtests/recent?${qs}`)
     },
     accuracy: (days = 30) => get<AccuracySummary>(`/backtests/accuracy?days=${days}`),
+    recommended: (sport?: string, onlyEvaluated = false, limit = 200) => {
+      const qs = new URLSearchParams({ limit: String(limit) })
+      if (sport) qs.set('sport', sport)
+      if (onlyEvaluated) qs.set('only_evaluated', 'true')
+      return get<RecommendedPick[]>(`/backtests/recommended?${qs}`)
+    },
+    recommendedAccuracy: () =>
+      get<RecommendedAccuracy>('/backtests/recommended/accuracy'),
   },
+}
+
+export interface RecommendedPick {
+  id: number
+  match_id: number
+  sport: string
+  league: string
+  home_team: string
+  away_team: string
+  kickoff_time: string | null
+  market: string
+  line: number
+  direction: 'over' | 'under'
+  model_probability: number
+  fair_odds: number
+  ranking_score: number
+  confidence_label: string
+  actual_total: number | null
+  actual_hit: boolean | null
+  evaluated_at: string | null
+  match_status: string
+}
+
+export interface RecommendedAccuracy {
+  n: number
+  hits: number
+  hit_rate: number
+  by_sport: Record<string, {
+    n: number
+    hits: number
+    hit_rate: number
+    avg_prob: number
+    avg_odds: number
+  }>
 }
 
 export interface RecentOutcome {

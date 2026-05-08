@@ -94,6 +94,42 @@ def trigger_evaluation(db: Session = Depends(get_db)):
     return {"new_outcomes": n_eval, "calibration_bins": n_bins}
 
 
+@router.post("/backfill-recommended")
+def backfill_recommended_picks(db: Session = Depends(get_db)):
+    """Erzeugt Recommended Picks für alle bestehenden Predictions die
+    noch keinen Pick haben.  Einmaliger Catch-Up nach Schema-Update."""
+    from app.db.models import Match, Prediction, RecommendedPick
+    from app.services.recommended import (
+        persist_recommended_pick, evaluate_recommended_picks,
+    )
+
+    existing_pids = {
+        row[0] for row in db.query(RecommendedPick.prediction_id).all()
+    }
+    preds = (
+        db.query(Prediction, Match)
+        .join(Match, Prediction.match_id == Match.id)
+        .all()
+    )
+    n_created = 0
+    n_skipped_no_pick = 0
+    for pred, match in preds:
+        if pred.id in existing_pids:
+            continue
+        rp = persist_recommended_pick(db, match, pred)
+        if rp is None:
+            n_skipped_no_pick += 1
+        else:
+            n_created += 1
+    db.commit()
+    n_eval = evaluate_recommended_picks(db)
+    return {
+        "created": n_created,
+        "no_qualifying_pick": n_skipped_no_pick,
+        "evaluated_after_backfill": n_eval,
+    }
+
+
 @router.post("/seed")
 def seed_real_data(db: Session = Depends(get_db)):
     """

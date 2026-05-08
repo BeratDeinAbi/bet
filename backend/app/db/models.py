@@ -224,6 +224,44 @@ class PredictionOutcome(Base):
     match = relationship("Match")
 
 
+class RecommendedPick(Base):
+    """Pro vorhergesagtem Match speichert das System hier den besten
+    Markt-Pick (höchster Ranking-Score, faire Quote ≥ 1.25) für späteres
+    Backtesting.  Eine Zeile = ein Vorschlag, der in Wettlogik einen
+    Mehrwert hätte.
+
+    Nach Spielende wird ``actual_hit`` gesetzt (Hit=1 / Miss=0).  Damit
+    bekommt das Modell pro Sportart eine ehrliche Wett-Trefferquote
+    auf konservativen Picks (keine 95%-Lock-Picks-Inflation).
+    """
+    __tablename__ = "recommended_picks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    prediction_id = Column(Integer, ForeignKey("predictions.id"), unique=True, index=True)
+    match_id = Column(Integer, ForeignKey("matches.id"), index=True)
+
+    sport = Column(String(20), index=True)
+    league = Column(String(10), index=True)
+
+    market = Column(String(50))             # "Total", "F5 Runs", "Q1 Punkte" ...
+    line = Column(Float)                     # 2.5, 7.5, 220.5 ...
+    direction = Column(String(10))           # over | under
+    model_probability = Column(Float)
+    fair_odds = Column(Float)
+    ranking_score = Column(Float)
+    confidence_label = Column(String(20))
+
+    # Outcome
+    actual_total = Column(Float, nullable=True)
+    actual_hit = Column(Boolean, nullable=True)
+    evaluated_at = Column(DateTime(timezone=True), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    prediction = relationship("Prediction")
+    match = relationship("Match")
+
+
 class CalibrationBin(Base):
     """Pro Sport eine empirische Kalibrierungs-Kurve.
 

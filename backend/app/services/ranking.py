@@ -30,10 +30,12 @@ logger = logging.getLogger(__name__)
 # slot.
 _MIN_PROB = 0.60
 
-# Mindest-Faire-Quote für einen Pick: 1.24 ⇒ Wahrscheinlichkeit
-# höchstens 1/1.24 ≈ 0.806.  Damit fliegen triviale „Over 0.5"-Picks
-# (faire Quote ~1.05) raus und nur Vorschläge mit echtem Wert bleiben.
-_MIN_FAIR_ODDS = 1.24
+# Mindest-Faire-Quote für einen Pick: 1.25 ⇒ Wahrscheinlichkeit
+# höchstens 1/1.25 = 0.80.  Damit fliegen triviale „Over 0.5"-Picks
+# (faire Quote ~1.05) raus und nur Vorschläge mit echtem Wettwert
+# bleiben.  Diese Picks landen automatisch in der RecommendedPick-
+# Tabelle für tägliches Backtesting.
+_MIN_FAIR_ODDS = 1.25
 _MAX_PROB = 1.0 / _MIN_FAIR_ODDS
 
 # Fenster für „heute" — gleich wie in der API, damit Top3 dieselben
