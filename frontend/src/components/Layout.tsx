@@ -1,9 +1,11 @@
 import { Outlet, NavLink, Link } from 'react-router-dom'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Sun, Moon } from 'lucide-react'
 import clsx from 'clsx'
 import Top3Modal from './Top3Modal'
 import { api } from '../api/client'
+import { useTheme } from '../hooks/useTheme'
 
 /**
  * ThePredicter — Top-Level-Layout.
@@ -14,6 +16,7 @@ import { api } from '../api/client'
  */
 export default function Layout() {
   const [top3Open, setTop3Open] = useState(false)
+  const [theme, toggleTheme] = useTheme()
   const healthQuery = useQuery({
     queryKey: ['health'],
     queryFn: api.health,
@@ -62,13 +65,27 @@ export default function Layout() {
             ))}
           </nav>
 
-          <button
-            onClick={() => setTop3Open(true)}
-            className="flex items-center gap-2 text-[13px] font-semibold text-canvas-1 bg-accent hover:bg-accent-bright transition-colors px-3.5 py-1.5 rounded-md shrink-0"
-          >
-            <span className="leading-none">→</span>
-            Top 3 heute
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={toggleTheme}
+              aria-label={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+              title={theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+              className="p-2 rounded-md text-text-mute hover:text-text hover:bg-canvas-2 transition-colors"
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
+            </button>
+            <button
+              onClick={() => setTop3Open(true)}
+              className="flex items-center gap-2 text-[13px] font-semibold text-canvas-1 bg-accent hover:bg-accent-bright transition-colors px-3.5 py-1.5 rounded-md"
+            >
+              <span className="leading-none">→</span>
+              Top 3 heute
+            </button>
+          </div>
         </div>
       </header>
 

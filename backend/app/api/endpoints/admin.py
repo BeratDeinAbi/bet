@@ -13,14 +13,19 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 @router.post("/refresh")
 def refresh_matches(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    """Fetch today's real matches from ESPN/NHL API and generate predictions.
+    """Fetch today's matches AND backfill the last 3 days of finished
+    games + auto-evaluate so the Modellgüte-page reflects yesterday.
 
-    Bestehende Predictions für noch nicht gestartete Spiele werden vorher
-    gelöscht, damit Schema-Änderungen (z. B. neue ``extra_markets``-Keys
-    nach Modell-Update) sofort wirken.
+    Bestehende Predictions für noch nicht gestartete Spiele werden
+    vorher gelöscht, damit Schema-Änderungen sofort wirken.
     """
     from app.db.models import Match, Prediction
+    from app.services.ingestion import backfill_recent_results
+    from app.services.evaluation import (
+        evaluate_finished_matches, compute_calibration, reload_calibration_cache,
+    )
     from datetime import datetime, timezone
+
     now = datetime.now(timezone.utc)
     stale = (
         db.query(Prediction)
@@ -33,11 +38,21 @@ def refresh_matches(background_tasks: BackgroundTasks, db: Session = Depends(get
     db.commit()
 
     def _run(db):
-        n = ingest_today_matches(db)
-        p = predict_today(db)
-        return n, p
+        # 1) Past 3 Tage Status-Update (Vortages-Ergebnisse holen)
+        backfill_recent_results(db, days_back=3)
+        # 2) Heutige Spiele holen
+        ingest_today_matches(db)
+        # 3) Predictions für heute generieren
+        predict_today(db)
+        # 4) Outcomes evaluieren — direkt damit Modellgüte aktuell ist
+        evaluate_finished_matches(db)
+        compute_calibration(db)
+        reload_calibration_cache(db)
     background_tasks.add_task(_run, db)
-    return {"status": "refresh started", "stale_predictions_cleared": len(stale)}
+    return {
+        "status": "refresh started — incl. 3-day backfill + auto-evaluation",
+        "stale_predictions_cleared": len(stale),
+    }
 
 
 @router.post("/train")

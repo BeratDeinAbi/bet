@@ -83,6 +83,36 @@ async def on_startup():
     except Exception as e:
         logger.warning(f"Scheduler start failed: {e}")
 
+    # Catch-Up: Wenn die letzte Outcome-Evaluation mehr als 24h her ist
+    # (oder noch nie lief), läuft der Daily-Cycle einmal direkt — sonst
+    # entstehen Daten-Lücken wenn der Server zwischen den 04:00-Slots
+    # gestartet/gestoppt wurde.
+    try:
+        import threading
+        from datetime import datetime, timedelta, timezone
+        from app.db.models import PredictionOutcome
+        from app.db.database import SessionLocal as _SL
+        with _SL() as _db:
+            last = _db.query(PredictionOutcome).order_by(
+                PredictionOutcome.evaluated_at.desc()
+            ).first()
+        threshold = datetime.now(timezone.utc) - timedelta(hours=24)
+        needs_catchup = (
+            last is None or
+            last.evaluated_at is None or
+            (last.evaluated_at.replace(tzinfo=timezone.utc) if last.evaluated_at.tzinfo is None else last.evaluated_at) < threshold
+        )
+        if needs_catchup:
+            logger.info("Last evaluation >24h ago — running daily-cycle catch-up in background")
+            from app.services.scheduler import run_daily_cycle
+            threading.Thread(
+                target=lambda: run_daily_cycle(),
+                name="startup-catchup",
+                daemon=True,
+            ).start()
+    except Exception as e:
+        logger.warning(f"Startup catch-up check failed: {e}")
+
     logger.info(f"Database ready. Football provider: {settings.FOOTBALL_PROVIDER}")
 
 

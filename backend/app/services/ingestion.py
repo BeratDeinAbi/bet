@@ -131,6 +131,85 @@ def _mock_fallback_leagues(db: Session, missing_codes: List[str], total: int) ->
     return total
 
 
+def backfill_recent_results(db: Session, days_back: int = 3) -> int:
+    """Aktualisiert Status + Scores aller Matches der letzten N Tage.
+
+    Hintergrund: ``ingest_today_matches`` holt nur Spiele in einem
+    "heute"-Fenster.  Spiele von vorgestern, die zum Ingest-Zeitpunkt
+    noch SCHEDULED waren und inzwischen finished sind, würden ohne
+    diesen Backfill nie ihren Status updaten — und damit nie evaluiert.
+
+    Date-fähige Provider (NHL, MLB, NBA-ESPN) werden explizit für jedes
+    der letzten N Tage neu abgefragt.  Football-Provider (OpenLigaDB,
+    ESPN football) sind matchday/saison-basiert und holen ihre laufende
+    Saison sowieso komplett — die deckt der normale Today-Fetch ab.
+    """
+    today = date.today()
+    total = 0
+
+    # ── NHL ──────────────────────────────────────────────────────────
+    hp = get_hockey_provider()
+    for d in range(1, days_back + 1):
+        target = (today - timedelta(days=d)).isoformat()
+        try:
+            data = hp._get(f"schedule/{target}")
+            if not data:
+                continue
+            for day_block in data.get("gameWeek", []):
+                if day_block.get("date") != target:
+                    continue
+                for game in day_block.get("games", []):
+                    try:
+                        pm = hp._parse_game(game)
+                        comp = _ensure_competition(db, "NHL")
+                        _upsert_match(db, pm, comp.id)
+                        total += 1
+                    except Exception:
+                        continue
+        except Exception as e:
+            logger.warning(f"NHL backfill {target} failed: {e}")
+    db.flush()
+
+    # ── MLB ──────────────────────────────────────────────────────────
+    bbp = get_baseball_provider()
+    for d in range(1, days_back + 1):
+        target = (today - timedelta(days=d)).isoformat()
+        try:
+            for raw in bbp._schedule(target):
+                try:
+                    pm = bbp._parse_game(raw)
+                    comp = _ensure_competition(db, "MLB")
+                    _upsert_match(db, pm, comp.id)
+                    total += 1
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.warning(f"MLB backfill {target} failed: {e}")
+    db.flush()
+
+    # ── NBA (ESPN scoreboard, dates=YYYYMMDD) ───────────────────────
+    bp = get_basketball_provider()
+    for d in range(1, days_back + 1):
+        target_str = (today - timedelta(days=d)).strftime("%Y%m%d")
+        try:
+            events = bp._get_scoreboard(target_str)
+            for ev in events:
+                try:
+                    pm = bp._parse_event(ev)
+                    comp = _ensure_competition(db, "NBA")
+                    _upsert_match(db, pm, comp.id)
+                    total += 1
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.warning(f"NBA backfill {target_str} failed: {e}")
+    db.flush()
+
+    db.commit()
+    logger.info(f"Backfill recent {days_back} days: {total} matches updated")
+    return total
+
+
 def ingest_today_matches(db: Session) -> int:
     total = 0
 

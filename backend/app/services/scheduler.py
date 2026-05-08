@@ -33,12 +33,24 @@ def run_daily_cycle() -> dict:
     from app.services.evaluation import (
         evaluate_finished_matches, compute_calibration, reload_calibration_cache,
     )
-    from app.services.ingestion import ingest_today_matches
+    from app.services.ingestion import (
+        backfill_recent_results, ingest_today_matches,
+    )
 
     started = datetime.now(timezone.utc)
     result: dict = {"started": started.isoformat()}
     db = SessionLocal()
     try:
+        # 0. Backfill: Status der Spiele der letzten 3 Tage updaten.
+        #    Sonst bleiben Vortages-Spiele auf SCHEDULED und werden nie
+        #    ausgewertet.
+        try:
+            n_back = backfill_recent_results(db, days_back=3)
+            result["matches_backfilled"] = n_back
+        except Exception as e:
+            logger.warning(f"daily backfill failed: {e}")
+            result["backfill_error"] = str(e)
+
         # 1. heutige + neue Endergebnisse holen, damit FINISHED-Status frisch ist
         try:
             n_today = ingest_today_matches(db)

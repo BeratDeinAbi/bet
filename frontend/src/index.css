@@ -2,6 +2,10 @@
  * Fraunces (Display)  → Headlines / Zahlen mit Charakter
  * IBM Plex Sans       → Body-Text
  * IBM Plex Mono       → Stats, tabellarische Zahlen
+ *
+ * Theme-Tokens als CSS Custom Properties — Tailwind referenziert sie
+ * via rgb(var(--token) / <alpha-value>).  Light- und Dark-Mode sind
+ * voll separate Paletten, keine Filter/Invertierung.
  */
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700;9..144,800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
 
@@ -12,6 +16,56 @@
 @layer base {
   :root {
     color-scheme: light;
+    /* Light mode (default) — hellgrau + grün */
+    --canvas:        245 247 244;   /* #f5f7f4 */
+    --canvas-1:      255 255 255;
+    --canvas-2:      238 241 236;
+    --canvas-3:      227 231 224;
+    --canvas-line:   225 229 221;
+    --canvas-border: 205 211 200;
+
+    --text:       26  31  26;       /* #1a1f1a */
+    --text-dim:   61  69  64;
+    --text-mute:  107 114 128;
+    --text-quiet: 156 163 175;
+
+    --accent:        45 122 62;      /* #2d7a3e */
+    --accent-bright: 63 163 86;
+    --accent-soft:   220 235 224;
+    --accent-dim:    31  92 45;
+
+    --pos:   45 122 62;
+    --neg:   194 65 12;
+    --warn:  180 83  9;
+    --live:  220 38 38;
+    --info:    3 105 161;
+  }
+
+  html.dark {
+    color-scheme: dark;
+    /* Dark mode — warmes Off-Schwarz mit hellerem Grün-Akzent */
+    --canvas:         14 13 10;     /* #0e0d0a */
+    --canvas-1:       21 20 15;
+    --canvas-2:       28 26 20;
+    --canvas-3:       38 35 28;
+    --canvas-line:    45 42 35;
+    --canvas-border:  58 54 45;
+
+    --text:       243 237 224;       /* warmes Cremeweiß */
+    --text-dim:   207 199 182;
+    --text-mute:  138 132 120;
+    --text-quiet:  91  87  78;
+
+    --accent:         87 188 105;     /* heller fürs dunkle Theme */
+    --accent-bright: 126 207 138;
+    --accent-soft:    28  55  33;
+    --accent-dim:     47 138  67;
+
+    --pos:    87 188 105;
+    --neg:   220 100  60;
+    --warn:  217 162  90;
+    --live:  221  68  68;
+    --info:   123 173 215;
   }
 
   html {
@@ -22,17 +76,23 @@
 
   body {
     @apply bg-canvas text-text font-sans antialiased;
+    transition: background-color 200ms ease, color 200ms ease;
   }
 
   ::selection {
-    background: rgba(45, 122, 62, 0.20);
-    color: #1a1f1a;
+    background: rgb(var(--accent) / 0.25);
+    color: rgb(var(--text));
   }
 
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #cdd3c8; border-radius: 99px; }
-  ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--canvas-border));
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--text-quiet));
+  }
 
   .num,
   .tabular-nums {
@@ -52,14 +112,13 @@
     @apply border-t border-canvas-line;
   }
 
-  /* Card-Surface — weiß auf gefärbtem Canvas, sehr feine Border, kein Schatten */
   .surface {
     @apply bg-canvas-1 border border-canvas-line;
   }
 
   .surface-raised {
     @apply bg-canvas-1 border border-canvas-border;
-    box-shadow: 0 1px 2px rgba(26, 31, 26, 0.04);
+    box-shadow: 0 1px 2px rgb(var(--text) / 0.04);
   }
 }
 
