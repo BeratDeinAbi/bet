@@ -13,8 +13,10 @@ Design goals:
   up with trivial "Over 0.5" picks.
 """
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date as date_type
 from typing import Any, Dict, List, Optional, Tuple
+
+from sqlalchemy import func
 
 from sqlalchemy.orm import Session
 
@@ -230,37 +232,84 @@ def _best_pick_per_match(db: Session, match: Match,
     return best_pick
 
 
-def rank_top3_predictions(db: Session) -> Top3Response:
-    now = datetime.now(timezone.utc)
-    window_lo = now - _TODAY_PAST
-    window_hi = now + _TODAY_FUTURE
+def rank_top3_predictions(
+    db: Session,
+    snapshot_date: Optional[date_type] = None,
+) -> Top3Response:
+    """Top-3-Picks berechnen.
 
-    matches = (
-        db.query(Match)
-        .join(Competition)
-        .all()
-    )
+    - Ohne ``snapshot_date``: Live-Modus.  Spiele mit Kickoff im Fenster
+      [now − 6 h, now + 36 h] und deren aktuellster Prediction.
+    - Mit ``snapshot_date``: Historischer Modus.  Spiele die an dem Tag
+      stattfanden + Predictions, die an dem Tag erstellt wurden.  Bei
+      mehreren Predictions pro Match am Tag gewinnt die jüngste.
+    """
+    if snapshot_date is None:
+        # Live-Modus: Fenster relativ zu now
+        now = datetime.now(timezone.utc)
+        window_lo = now - _TODAY_PAST
+        window_hi = now + _TODAY_FUTURE
 
-    def _in_window(m):
-        if not m.kickoff_time:
-            return False
-        kt = m.kickoff_time
-        if kt.tzinfo is None:
-            kt = kt.replace(tzinfo=timezone.utc)
-        return window_lo <= kt <= window_hi
+        matches = db.query(Match).join(Competition).all()
 
-    today_matches = [m for m in matches if _in_window(m)]
+        def _in_window(m):
+            if not m.kickoff_time:
+                return False
+            kt = m.kickoff_time
+            if kt.tzinfo is None:
+                kt = kt.replace(tzinfo=timezone.utc)
+            return window_lo <= kt <= window_hi
+
+        scoped_matches = [m for m in matches if _in_window(m)]
+
+        # Aktuellste Prediction pro Match
+        def _pred_for(match: Match) -> Optional[Prediction]:
+            return (
+                db.query(Prediction)
+                .filter(Prediction.match_id == match.id)
+                .order_by(Prediction.created_at.desc())
+                .first()
+            )
+    else:
+        # Historischer Modus
+        day_start = datetime.combine(snapshot_date, datetime.min.time(), tzinfo=timezone.utc)
+        day_end = day_start + timedelta(days=1)
+
+        # Spiele mit Anstoßzeit an dem Tag
+        all_matches = db.query(Match).join(Competition).all()
+
+        def _kickoff_on_day(m):
+            if not m.kickoff_time:
+                return False
+            kt = m.kickoff_time
+            if kt.tzinfo is None:
+                kt = kt.replace(tzinfo=timezone.utc)
+            return day_start <= kt < day_end
+
+        scoped_matches = [m for m in all_matches if _kickoff_on_day(m)]
+
+        # Predictions, die an dem Tag erstellt wurden — jüngste gewinnt
+        def _pred_for(match: Match) -> Optional[Prediction]:
+            return (
+                db.query(Prediction)
+                .filter(
+                    Prediction.match_id == match.id,
+                    Prediction.created_at >= day_start,
+                    Prediction.created_at < day_end,
+                )
+                .order_by(Prediction.created_at.desc())
+                .first()
+            )
 
     picks: List[Top3Pick] = []
-    for match in today_matches:
-        pred = db.query(Prediction).filter(Prediction.match_id == match.id).first()
+    for match in scoped_matches:
+        pred = _pred_for(match)
         if not pred:
             continue
         best = _best_pick_per_match(db, match, pred)
         if best is not None:
             picks.append(best)
 
-    # One pick per match guaranteed by _best_pick_per_match → just sort.
     picks.sort(
         key=lambda p: (p.ranking_score, p.model_probability, p.confidence_score),
         reverse=True,

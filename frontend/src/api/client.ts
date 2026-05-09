@@ -42,7 +42,21 @@ export const api = {
       const query = qs.toString() ? `?${qs}` : ''
       return get<Prediction[]>(`/predictions/today${query}`)
     },
-    top3: () => get<Top3Response>('/predictions/top3'),
+    /** Historische Predictions, die an dem angegebenen Tag erstellt wurden. */
+    byDate: (date: string, params?: { sport?: string; league?: string }) => {
+      const qs = new URLSearchParams({ date })
+      if (params?.sport) qs.set('sport', params.sport)
+      if (params?.league) qs.set('league', params.league)
+      return get<Prediction[]>(`/predictions/by-date?${qs}`)
+    },
+    /** Verfügbare Snapshot-Tage (für Date-Picker). */
+    historyDates: (limit = 60) =>
+      get<string[]>(`/predictions/history/dates?limit=${limit}`),
+    /** Top 3.  Ohne Datum live, mit Datum historisch. */
+    top3: (date?: string | null) => {
+      const query = date ? `?date=${encodeURIComponent(date)}` : ''
+      return get<Top3Response>(`/predictions/top3${query}`)
+    },
     forMatch: (matchId: number) => get<Prediction>(`/predictions/${matchId}`),
   },
 

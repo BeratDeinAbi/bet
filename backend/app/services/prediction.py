@@ -197,9 +197,25 @@ def _generate_explanation(sport: str, preds: Dict, home_team: str, away_team: st
 
 
 def predict_match(db: Session, match: Match) -> Optional[Prediction]:
-    existing = db.query(Prediction).filter(Prediction.match_id == match.id).first()
-    if existing:
-        return existing
+    # Snapshot-Logik: pro Match höchstens eine Prediction PRO TAG.
+    # Wurde heute schon eine erstellt → wiederverwenden (Idempotenz beim
+    # mehrfachen "Aktualisieren"-Klick am selben Tag).  Ältere
+    # Predictions bleiben als Historie erhalten und sind über
+    # /predictions/by-date abrufbar.
+    today_start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    existing_today = (
+        db.query(Prediction)
+        .filter(
+            Prediction.match_id == match.id,
+            Prediction.created_at >= today_start,
+        )
+        .order_by(Prediction.created_at.desc())
+        .first()
+    )
+    if existing_today:
+        return existing_today
 
     sport = match.sport
     home = match.home_team_name

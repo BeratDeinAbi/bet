@@ -1,4 +1,4 @@
-import { Outlet, NavLink, Link } from 'react-router-dom'
+import { Outlet, NavLink, Link, useSearchParams } from 'react-router-dom'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Sun, Moon } from 'lucide-react'
@@ -17,6 +17,11 @@ import { useTheme } from '../hooks/useTheme'
 export default function Layout() {
   const [top3Open, setTop3Open] = useState(false)
   const [theme, toggleTheme] = useTheme()
+  const [searchParams] = useSearchParams()
+  // Wenn das Dashboard einen Snapshot-Tag aktiv hat, übernimmt das Modal
+  // automatisch denselben Tag.  URL-Param ist Single Source of Truth.
+  const snapshotDate = searchParams.get('date')
+
   const healthQuery = useQuery({
     queryKey: ['health'],
     queryFn: api.health,
@@ -83,7 +88,7 @@ export default function Layout() {
               className="flex items-center gap-2 text-[13px] font-semibold text-canvas-1 bg-accent hover:bg-accent-bright transition-colors px-3.5 py-1.5 rounded-md"
             >
               <span className="leading-none">→</span>
-              Top 3 heute
+              {snapshotDate ? 'Top 3 vom Tag' : 'Top 3 heute'}
             </button>
           </div>
         </div>
@@ -105,7 +110,12 @@ export default function Layout() {
         </div>
       </footer>
 
-      {top3Open && <Top3Modal onClose={() => setTop3Open(false)} />}
+      {top3Open && (
+        <Top3Modal
+          onClose={() => setTop3Open(false)}
+          date={snapshotDate}
+        />
+      )}
     </div>
   )
 }
