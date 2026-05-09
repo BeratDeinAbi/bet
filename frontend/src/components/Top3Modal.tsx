@@ -7,18 +7,32 @@ import ConfidenceBadge from './ConfidenceBadge'
 
 interface Props {
   onClose: () => void
+  /** Optional: YYYY-MM-DD für historischen Snapshot.  Null/undef = heute. */
+  date?: string | null
 }
 
 /**
  * Top-3-Modal als „Notiz" — kein Trophy-Icon, keine Trophäen-Farben
  * (Gold/Silber/Bronze).  Stattdessen redaktionelle Nummerierung
  * (große Serif-Ziffer) und ruhige Tabellen-Sektionen.
+ *
+ * Wenn ``date`` gesetzt ist, wird die historische Top-3 für diesen Tag
+ * geladen (rekonstruiert aus den Snapshot-Predictions).
  */
-export default function Top3Modal({ onClose }: Props) {
+export default function Top3Modal({ onClose, date }: Props) {
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['top3'],
-    queryFn: api.predictions.top3,
+    queryKey: ['top3', date ?? 'today'],
+    queryFn: () => api.predictions.top3(date ?? null),
   })
+
+  const isHistorical = !!date
+  const headlineDate = date
+    ? new Date(date + 'T00:00:00Z').toLocaleDateString('de-DE', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      })
+    : null
 
   // ESC schließt das Modal — kleine Geste, aber vom UX gehört's dazu.
   useEffect(() => {
@@ -40,14 +54,16 @@ export default function Top3Modal({ onClose }: Props) {
         <div className="flex items-start justify-between px-6 sm:px-8 pt-6 pb-5 border-b border-ink-line">
           <div>
             <p className="smallcaps text-[10px] text-paper-mute mb-1.5">
-              Tagesbriefing
+              {isHistorical ? `Snapshot · ${headlineDate}` : 'Tagesbriefing'}
             </p>
             <h2 className="font-display font-medium text-paper text-[28px] tracking-tighter2 leading-none">
-              Drei <span className="italic font-normal">Picks</span> für heute
+              Drei <span className="italic font-normal">Picks</span>{' '}
+              {isHistorical ? 'vom Tag' : 'für heute'}
             </h2>
             <p className="text-paper-mute text-[12px] mt-2 max-w-md">
-              Verschiedene Spiele, faire Quote ≥ 1,24 — keine trivialen
-              Lock-Picks, sondern Vorschläge mit Wettwert.
+              {isHistorical
+                ? 'So sahen die Top 3 an diesem Tag aus — rekonstruiert aus den gespeicherten Predictions.'
+                : 'Verschiedene Spiele, faire Quote ≥ 1,24 — keine trivialen Lock-Picks, sondern Vorschläge mit Wettwert.'}
             </p>
           </div>
           <button
