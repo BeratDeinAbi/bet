@@ -83,13 +83,22 @@ class Top3Response(BaseModel):
 
 
 class RecommendedPickSchema(BaseModel):
-    """Wett-Empfehlung pro Match — faire Quote ≥ 1.25, Wahrscheinlichkeit ≥ 60 %."""
+    """Wett-Empfehlung pro Match.
+
+    Wenn ``bookmaker_odds`` gesetzt ist, kommt der Pick aus dem
+    konfigurierten Bookmaker (Standard: Betano).  ``edge`` ist die
+    Differenz zwischen Modell-Wahrscheinlichkeit und impliziter
+    Wahrscheinlichkeit aus der Bookmaker-Quote.
+    """
     market: str
     line: float
     direction: str           # over | under
     model_probability: float
     fair_odds: float
     confidence_label: str
+    bookmaker_name: Optional[str] = None
+    bookmaker_odds: Optional[float] = None
+    edge: Optional[float] = None
 
     class Config:
         from_attributes = True

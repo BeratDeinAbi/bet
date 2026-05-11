@@ -4,7 +4,7 @@ Ingestion service: fetches today's matches and historical data, stores in DB.
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, timedelta
 from typing import List, Optional, Set
 
 from sqlalchemy.orm import Session
@@ -458,4 +458,180 @@ def ingest_historical_matches(db: Session, seasons: List[str] = None) -> int:
 
     db.commit()
     logger.info(f"Ingested {total} historical matches (parallel fetch)")
+    return total
+
+
+# ---------------------------------------------------------------------------
+# Odds-Ingestion (Bookmaker-Quoten via The-Odds-API)
+# ---------------------------------------------------------------------------
+
+def _normalize_team_name_for_match(name: str) -> str:
+    """Spiegelbild von ``OddsAPIProvider._normalize_team_name`` —
+    duplizieren ist OK, beide Funktionen sind klein und der Service-
+    Layer soll nicht direkt vom Provider abhängen."""
+    if not name:
+        return ""
+    s = name.lower()
+    s = (s.replace("ä", "a").replace("ö", "o").replace("ü", "u")
+           .replace("ß", "ss").replace("é", "e").replace("è", "e")
+           .replace("á", "a").replace("í", "i").replace("ó", "o"))
+    import re
+    s = re.sub(r"\b(fc|cf|sc|ac|afc|bsc|cd|sv|tsv|tsg|vfb|vfl|fsv|borussia|club|cp)\b",
+               " ", s)
+    s = re.sub(r"[^a-z0-9]+", "", s)
+    return s
+
+
+def _find_match_for_odds(
+    db: Session,
+    league_code: str,
+    home_team: str,
+    away_team: str,
+    commence_iso: Optional[str],
+) -> Optional[Match]:
+    """Match-Lookup per Liga + normalisiertem Teamnamen + Kickoff-Tag.
+
+    Robust gegen Schreibweisen-Varianten (``Bayern München`` vs.
+    ``FC Bayern München``).  Wenn ``commence_iso`` da ist, schränkt es
+    auf Spiele am gleichen Kalendertag ein — schützt vor Treffern auf
+    historischen Spielen mit gleichen Teams.
+    """
+    comp = db.query(Competition).filter(Competition.code == league_code).first()
+    if not comp:
+        return None
+
+    home_norm = _normalize_team_name_for_match(home_team)
+    away_norm = _normalize_team_name_for_match(away_team)
+    if not home_norm or not away_norm:
+        return None
+
+    # Kandidat-Spiele dieser Liga in einem ±-Tagesfenster.  Schützt
+    # davor, eine Odds-Linie für „Bayern vs. Dortmund" am 30. März
+    # auf das Spiel im Oktober davor zu mappen.
+    now = datetime.now(timezone.utc)
+    window_lo = now - timedelta(days=2)
+    window_hi = now + timedelta(days=4)
+    matches = (
+        db.query(Match)
+        .filter(Match.competition_id == comp.id)
+        .filter(Match.kickoff_time >= window_lo)
+        .filter(Match.kickoff_time <= window_hi)
+        .all()
+    )
+    for m in matches:
+        if (_normalize_team_name_for_match(m.home_team_name) == home_norm
+                and _normalize_team_name_for_match(m.away_team_name) == away_norm):
+            return m
+    return None
+
+
+def _upsert_odds_line(
+    db: Session,
+    match_id: int,
+    market: str,
+    line: float,
+    direction: str,
+    bookmaker: str,
+    bookmaker_odds: float,
+    implied_probability: float,
+) -> None:
+    """Idempotent: bestehende OddsLine wird upgedated, sonst angelegt.
+
+    Composite key fürs Matching: ``(match_id, market, line, direction,
+    provider)``.  Letzteres ``provider`` ist hier der Bookmaker-Name.
+    """
+    from app.db.models import OddsLine
+    existing = (
+        db.query(OddsLine)
+        .filter(
+            OddsLine.match_id == match_id,
+            OddsLine.market == market,
+            OddsLine.line == line,
+            OddsLine.direction == direction,
+            OddsLine.provider == bookmaker,
+        )
+        .first()
+    )
+    if existing:
+        existing.bookmaker_odds = bookmaker_odds
+        existing.implied_probability = implied_probability
+        existing.fetched_at = datetime.now(timezone.utc)
+        return
+    from app.db.models import OddsLine as _OL
+    db.add(_OL(
+        match_id=match_id,
+        market=market,
+        line=line,
+        direction=direction,
+        provider=bookmaker,
+        bookmaker_odds=bookmaker_odds,
+        implied_probability=implied_probability,
+    ))
+
+
+def ingest_odds(db: Session) -> int:
+    """Holt Bookmaker-Quoten via The-Odds-API für alle aktiven Ligen.
+
+    Ein API-Call pro Liga (= aktuell 8 Calls/Tag).  Idempotent dank
+    ``_upsert_odds_line``.  Wenn ``ODDS_API_KEY`` nicht gesetzt ist,
+    wird übersprungen (graceful degradation).
+
+    Returns: Anzahl geschriebener / aktualisierter OddsLine-Zeilen.
+    """
+    if not settings.ODDS_API_KEY:
+        logger.info("ingest_odds: ODDS_API_KEY nicht gesetzt — übersprungen")
+        return 0
+
+    from app.providers.odds_api_provider import OddsAPIProvider, SPORT_KEY_MAP
+    provider = OddsAPIProvider()
+
+    all_leagues = (
+        list(settings.ACTIVE_FOOTBALL_LEAGUES)
+        + list(settings.ACTIVE_HOCKEY_LEAGUES)
+        + list(settings.ACTIVE_BASKETBALL_LEAGUES)
+        + list(settings.ACTIVE_BASEBALL_LEAGUES)
+    )
+
+    total = 0
+    for league_code in all_leagues:
+        sport_key = SPORT_KEY_MAP.get(league_code)
+        if not sport_key:
+            continue
+        t0 = time.time()
+        try:
+            lines = provider.get_odds_for_sport(sport_key)
+        except Exception as e:
+            logger.warning(f"ingest_odds {league_code}: provider error {e}")
+            continue
+
+        written = 0
+        for ld in lines:
+            match = _find_match_for_odds(
+                db, league_code,
+                ld["home_team"], ld["away_team"],
+                ld.get("commence_time"),
+            )
+            if not match:
+                continue
+            _upsert_odds_line(
+                db, match.id,
+                market=ld["market"],
+                line=ld["line"],
+                direction=ld["direction"],
+                bookmaker=ld["bookmaker"],
+                bookmaker_odds=ld["bookmaker_odds"],
+                implied_probability=ld["implied_probability"],
+            )
+            written += 1
+
+        db.flush()
+        _log_provider(
+            db, provider.name, f"odds:{sport_key}", True, written,
+            duration_ms=int((time.time() - t0) * 1000),
+        )
+        total += written
+        logger.info(f"ingest_odds {league_code}: {written} OddsLines aus {len(lines)} API-Linien")
+
+    db.commit()
+    logger.info(f"ingest_odds: total {total} OddsLine-Rows geschrieben/upgedated")
     return total

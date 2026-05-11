@@ -42,9 +42,14 @@ def refresh_matches(background_tasks: BackgroundTasks, db: Session = Depends(get
         backfill_recent_results(db, days_back=3)
         # 2) Heutige Spiele holen
         ingest_today_matches(db)
-        # 3) Predictions für heute generieren
+        # 3) Bookmaker-Quoten holen (z. B. Betano via The-Odds-API).
+        #    Muss VOR predict_today laufen, damit der RecommendedPick-
+        #    Service die Quoten bei der Pick-Selektion berücksichtigt.
+        from app.services.ingestion import ingest_odds
+        ingest_odds(db)
+        # 4) Predictions für heute generieren (inkl. RecommendedPick)
         predict_today(db)
-        # 4) Outcomes evaluieren — direkt damit Modellgüte aktuell ist
+        # 5) Outcomes evaluieren — direkt damit Modellgüte aktuell ist
         evaluate_finished_matches(db)
         compute_calibration(db)
         reload_calibration_cache(db)
@@ -173,7 +178,12 @@ def seed_real_data(db: Session = Depends(get_db)):
     # Step 3: real today matches
     n = ingest_today_matches(db)
 
-    # Step 4: predictions
+    # Step 3b: Bookmaker-Quoten (Betano via The-Odds-API).
+    # Best-effort: wenn ODDS_API_KEY leer ist, skippt die Funktion.
+    from app.services.ingestion import ingest_odds
+    odds_n = ingest_odds(db)
+
+    # Step 4: predictions (RecommendedPick liest ODDS_API-Quoten)
     p = predict_today(db)
 
     result = {
@@ -181,6 +191,7 @@ def seed_real_data(db: Session = Depends(get_db)):
         "data_source": "ESPN public API + NHL public API (no key required)",
         "historical_matches_for_training": hist,
         "matches_today": n,
+        "odds_lines_fetched": odds_n,
         "predictions_generated": p,
     }
     if train_warning:

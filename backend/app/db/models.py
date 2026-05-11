@@ -251,6 +251,14 @@ class RecommendedPick(Base):
     ranking_score = Column(Float)
     confidence_label = Column(String(20))
 
+    # Bookmaker-Quote die diesen Pick gerechtfertigt hat (z. B. Betano
+    # 1.32).  Wenn kein Bookmaker-Match in der OddsLine-Tabelle: NULL.
+    bookmaker_name = Column(String(20), nullable=True)
+    bookmaker_odds = Column(Float, nullable=True)
+    # edge = model_probability − implied_probability(bookmaker_odds).
+    # Positiver Wert = das Modell sieht mehr Wert als der Markt.
+    edge = Column(Float, nullable=True)
+
     # Outcome
     actual_total = Column(Float, nullable=True)
     actual_hit = Column(Boolean, nullable=True)
