@@ -116,8 +116,22 @@ def _build_pick(match: Match, pred: Prediction, market: str, line: float,
     )
 
 
-def _candidates_for(pred: Prediction, match: Match) -> List[Dict[str, Any]]:
-    """All viable market candidates for one match."""
+def _candidates_for(
+    pred: Prediction,
+    match: Match,
+    cap_max_prob: bool = True,
+) -> List[Dict[str, Any]]:
+    """All viable market candidates for one match.
+
+    ``cap_max_prob=True`` (Default): zusätzlich zu ``_MIN_PROB``
+    auch ``_MAX_PROB`` (≈ 0.806) anwenden — sinnvoll für faire-
+    Quote-basierte Picks, damit triviale „Lock"-Linien rausfliegen.
+
+    ``cap_max_prob=False``: nur untere Schwelle prüfen.  Sinnvoll
+    wenn die Pick-Auswahl gegen echte Bookmaker-Quoten läuft —
+    dort entscheidet die Bookmaker-Quote ob der Pick Wert hat,
+    nicht das (synthetische) faire-Quote-Cap.
+    """
     out: List[Dict[str, Any]] = []
     sport = match.sport
 
@@ -197,7 +211,9 @@ def _candidates_for(pred: Prediction, match: Match) -> List[Dict[str, Any]]:
     # Untere Schwelle: kein Coin-Flip-Pick.
     # Obere Schwelle: faire Quote muss mind. _MIN_FAIR_ODDS sein →
     # triviale Lock-Picks (Over 0.5 mit ~95 %) fliegen raus.
-    return [c for c in out if _MIN_PROB <= c["prob"] <= _MAX_PROB]
+    if cap_max_prob:
+        return [c for c in out if _MIN_PROB <= c["prob"] <= _MAX_PROB]
+    return [c for c in out if c["prob"] >= _MIN_PROB]
 
 
 def _best_pick_per_match(db: Session, match: Match,

@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     # Odds API (optional)
     ODDS_API_KEY: str = ""
     ODDS_API_BASE_URL: str = "https://api.the-odds-api.com/v4"
+    # Whitelist: nur Quoten dieses Bookmakers werden für die Pick-
+    # Auswahl verwendet.  Default: Betano (Kaizen Gaming).
+    ODDS_BOOKMAKER: str = "betano"
+    # Mindest-Bookmaker-Quote, damit ein Pick als „Vorschlag" gilt.
+    # Niedriger als 1.25 → triviale Lock-Picks ohne Wettwert.
+    ODDS_MIN_BOOKMAKER_ODDS: float = 1.25
+    # Region(en) für The-Odds-API.  Betano ist primär in EU verfügbar.
+    ODDS_API_REGIONS: str = "eu"
 
     # Providers
     USE_MOCK_FALLBACK: bool = True

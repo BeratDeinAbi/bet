@@ -95,6 +95,12 @@ export interface RecommendedPickInline {
   model_probability: number
   fair_odds: number
   confidence_label: ConfidenceLabel
+  /** Bookmaker-Name (z. B. „betano") wenn Quote von echtem Anbieter kommt. */
+  bookmaker_name?: string | null
+  /** Echte Quote des Bookmakers (z. B. 1.32). */
+  bookmaker_odds?: number | null
+  /** Edge = model_probability − (1 / bookmaker_odds). */
+  edge?: number | null
 }
 
 export interface Top3Pick {

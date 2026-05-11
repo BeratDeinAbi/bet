@@ -38,12 +38,22 @@ def _migrate_add_columns():
     from sqlalchemy import inspect, text
     from sqlalchemy.exc import OperationalError
     inspector = inspect(engine)
-    if "matches" not in inspector.get_table_names():
-        return
-    cols = {c["name"] for c in inspector.get_columns("matches")}
-    if "context" not in cols:
+    table_names = set(inspector.get_table_names())
+
+    def _add(table: str, column: str, ddl: str) -> None:
+        if table not in table_names:
+            return
+        cols = {c["name"] for c in inspector.get_columns(table)}
+        if column in cols:
+            return
         try:
             with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE matches ADD COLUMN context JSON"))
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {ddl}"))
         except OperationalError:
-            pass
+            pass  # Race oder bereits hinzugefügt
+
+    _add("matches", "context", "context JSON")
+    # Bookmaker-Felder für RecommendedPick (Phase: Betano-Quoten-Filter).
+    _add("recommended_picks", "bookmaker_name", "bookmaker_name VARCHAR(20)")
+    _add("recommended_picks", "bookmaker_odds", "bookmaker_odds FLOAT")
+    _add("recommended_picks", "edge", "edge FLOAT")

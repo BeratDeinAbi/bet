@@ -130,31 +130,10 @@ export default function MatchCard({ prediction: p }: Props) {
       </div>
 
       {/* ────────────────────────────────────────────────
-          Wett-Empfehlung (faire Quote ≥ 1.25)
+          Wett-Vorschlag — Bookmaker-Quote ≥ 1.25
           ──────────────────────────────────────────────── */}
       {p.recommended_pick ? (
-        <div className="mt-4 px-3.5 py-3 rounded-md bg-accent-soft border border-accent/20">
-          <div className="flex items-center justify-between gap-3 mb-1">
-            <span className="smallcaps text-[10px] font-semibold text-accent-dim">
-              Vorschlag
-            </span>
-            <span className="font-mono text-[10px] text-accent-dim/80 tabular-nums">
-              faire Quote {p.recommended_pick.fair_odds.toFixed(2)}
-            </span>
-          </div>
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="font-display text-text text-[17px] font-medium leading-tight">
-              {p.recommended_pick.direction === 'over' ? 'Over' : 'Under'}{' '}
-              {p.recommended_pick.line}{' '}
-              <span className="text-text-mute text-[13px] font-normal">
-                {p.recommended_pick.market}
-              </span>
-            </span>
-            <span className="font-display font-semibold text-accent-dim text-[20px] tabular-nums tracking-tightish">
-              {Math.round(p.recommended_pick.model_probability * 100)}%
-            </span>
-          </div>
-        </div>
+        <PickBox pick={p.recommended_pick} />
       ) : (
         <div className="mt-4 px-3.5 py-2.5 rounded-md bg-canvas-2 border border-canvas-line">
           <div className="flex items-center gap-2">
@@ -162,7 +141,7 @@ export default function MatchCard({ prediction: p }: Props) {
               Kein Vorschlag
             </span>
             <span className="text-text-quiet text-[11px] italic">
-              keine Linie ≥ 60 % mit fairer Quote ≥ 1.25
+              keine Linie ≥ 1,25 bei Betano für dieses Spiel
             </span>
           </div>
         </div>
@@ -356,6 +335,63 @@ function Section({
    Segment-Block (HZ, P1/2/3) — Label + Wert obendrüber,
    ProbBars darunter.
    ──────────────────────────────────────────────────────── */
+/* ────────────────────────────────────────────────
+   Wett-Vorschlag-Box.
+   Wenn ``bookmaker_odds`` da ist → echter Marktwert + Edge prominent.
+   Sonst → faire Quote als Fallback (alter Modus, falls ODDS_API_KEY fehlt).
+   ──────────────────────────────────────────────── */
+function PickBox({ pick }: { pick: NonNullable<Prediction['recommended_pick']> }) {
+  const hasBookmaker = pick.bookmaker_odds != null && pick.bookmaker_odds > 0
+  const bookmakerLabel = (pick.bookmaker_name ?? 'betano').toUpperCase()
+  const edgePct = pick.edge != null ? Math.round(pick.edge * 1000) / 10 : null
+  const edgePositive = edgePct != null && edgePct > 0
+
+  return (
+    <div className="mt-4 px-3.5 py-3 rounded-md bg-accent-soft border border-accent/20">
+      {/* Eyebrow: Bookmaker-Tag links, Edge rechts */}
+      <div className="flex items-center justify-between gap-3 mb-1.5">
+        <span className="smallcaps text-[10px] font-semibold text-accent-dim">
+          Vorschlag · {hasBookmaker ? bookmakerLabel : 'Modell'}
+        </span>
+        {edgePct != null ? (
+          <span
+            className={`font-mono text-[10px] tabular-nums ${
+              edgePositive ? 'text-pos' : 'text-text-mute'
+            }`}
+          >
+            Edge {edgePositive ? '+' : ''}{edgePct.toFixed(1)} %
+          </span>
+        ) : (
+          <span className="font-mono text-[10px] text-accent-dim/80 tabular-nums">
+            faire Quote {pick.fair_odds.toFixed(2)}
+          </span>
+        )}
+      </div>
+
+      {/* Hauptzeile: Markt + Linie links, Quote groß rechts */}
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="font-display text-text text-[17px] font-medium leading-tight">
+          {pick.direction === 'over' ? 'Over' : 'Under'}{' '}
+          {pick.line}{' '}
+          <span className="text-text-mute text-[13px] font-normal">
+            {pick.market}
+          </span>
+        </span>
+        <span className="text-right shrink-0">
+          <span className="font-display font-semibold text-accent-dim text-[20px] tabular-nums tracking-tightish">
+            {hasBookmaker ? pick.bookmaker_odds!.toFixed(2) : `${Math.round(pick.model_probability * 100)}%`}
+          </span>
+          {hasBookmaker && (
+            <span className="block font-mono text-[10px] text-text-mute tabular-nums leading-none mt-0.5">
+              {Math.round(pick.model_probability * 100)} % Modell
+            </span>
+          )}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 function SegmentBlock({
   label,
   value,
